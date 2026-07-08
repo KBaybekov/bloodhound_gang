@@ -1,10 +1,13 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from classes.objects.process import Process
 
 from bson import ObjectId
 from datetime import datetime, timezone
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, ValidationInfo, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ValidationInfo, ConfigDict, PrivateAttr
 
 from classes.objects.batch import Batch
 from classes.data.source import SourceData
@@ -89,15 +92,29 @@ class ProcessData(BaseModel):
 
 class Sample(BaseModel):
     """
-    Метаданные образца Nanopore
+    Метаданные образца
     """
-    from classes.objects.process import Process
+    
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               validate_assignment=True,
                               extra='ignore',
-                              protected_namespaces=()
+                              arbitrary_types_allowed=True
                              )
+    # IDS
+    db_id: ObjectId = Field(
+                            default_factory=ObjectId,
+                            description="Уникальный идентификатор записи образца в БД",
+                            alias='_id'
+                           )
+    sample_id: str = Field(
+                           default='',
+                           description="Идентификатор образца",
+                           max_length=60,
+                           frozen=True
+                          )
+
+    # Directories
     source_d: Path = Field(
                            ...,
                            description="Директория образца с исходными данными",
@@ -113,16 +130,11 @@ class Sample(BaseModel):
                         description="Директория образца с результатами обработки",
                         frozen=True
                        )
+    
     species: str = Field(
                          default="UNDEFINED",
                          description="Биологический вид образца"
                         )
-    sample_id: str = Field(
-                           default='',
-                           description="Идентификатор образца",
-                           max_length=60,
-                           frozen=True
-                          )
     group: str = Field(
                        default='unknown_group',
                        description="Группа образца",
@@ -163,11 +175,7 @@ class Sample(BaseModel):
                                          examples=[{get_now_time(): 'Sample created'}]
                                         )
     # для хранения исходного состояния
-    _original: dict[str, Any] = {}
-    _id: ObjectId = Field(
-                               default_factory=ObjectId,
-                               description="Уникальный идентификатор записи образца в БД"
-                              )
+    _original: dict[str, Any] = PrivateAttr(default={})
     created_at_DB: datetime|None = Field(
                                           default=None,
                                           description="Время создания записи образца в БД"
@@ -282,7 +290,7 @@ class Sample(BaseModel):
         Сериализует экземпляр Sample в документ для загрузки в БД.
         """
         doc = self.model_dump(mode='json')
-        doc['_id'] = self._id
+        #doc['_id'] = self.db_id
         return doc
 
     @field_validator('source_d')

@@ -1,18 +1,21 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from classes.objects.process import Process
+    from classes.data.files.fastq_ont import FastqONT
+    from classes.data.files.ubam_ont import UbamONT
 
 from datetime import datetime
 from pathlib import Path
 from pydantic import Field
 
 from classes.data.results.result_basic import ResultBasic
-from classes.data.files.fastq_ont import FastqONT
-from classes.data.files.ubam_ont import UbamONT
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
 
 class ResultBasecallingBasic(ResultBasic):
-    from classes.objects.process import Process
+    
 
     """
     Данные бейзколлинга без модификаций

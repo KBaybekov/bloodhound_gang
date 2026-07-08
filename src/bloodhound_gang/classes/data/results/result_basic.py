@@ -1,10 +1,12 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from classes.objects.process import Process
 
 from datetime import datetime
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 
-from classes.objects.process import Process
 from modules.utils import obj_size_in_Gb
 
 
@@ -78,8 +80,10 @@ class ResultBasic(BaseModel):
                                )
 
     @classmethod
-    def from_process(cls, process:Process) -> "ResultBasic":
+    def from_process(cls, process:"Process") -> "ResultBasic":
         """Создаёт экземпляр ResultBasic на основе метаданных процесса"""
+        from classes.objects.process import Process
+
         res_d_size_GB = 0.0
         work_d_size_GB = 0.0
         if process.res_d != Path('/dev/null'):

@@ -1,5 +1,8 @@
 from __future__ import annotations
-from typing import Any, Callable, Dict, Literal, Optional
+from typing import Any, Callable, Dict, Literal, TYPE_CHECKING, Optional
+if TYPE_CHECKING:
+    from classes.objects.process import Process
+    from classes.objects.sample import Sample
 
 import hashlib
 import json
@@ -7,37 +10,18 @@ from datetime import date
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from classes.objects.sample import Sample
-from classes.objects.process import Process
+from classes.objects.taskload import TaskLoad
 from constants import DELIMITER
 from modules.utils import load_callable, parse_str_for_variables_names, str_to_dict, read_tsv, save_yaml
 from modules.logger import get_logger
 
 
-class TaskLoad(BaseModel):
-    """
-    Хранение информации о нагрузке, которую создаст процесс по заданию.
-    """
-    cpus: int = Field(
-                      default=0,
-                      description="Количество CPU",
-                      ge=0
-                     )
-    ram: int = Field(
-                      default=0,
-                      description="Количество RAM",
-                      ge=0
-                     )
-    gpus: int = Field(
-                      default=0,
-                      description="Количество GPU",
-                      ge=0
-                     )
-
 class Task(BaseModel):
     """
     Шаблон задания обработки данных Nanopore 
     """
+    
+
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               extra='ignore',

@@ -1,5 +1,9 @@
 from __future__ import annotations
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, TYPE_CHECKING
+if TYPE_CHECKING:
+    from classes.data.result_union import ResultUnion
+    from classes.objects.sample import Sample
+    from classes.objects.task import Task
 
 import asyncio
 import re
@@ -9,8 +13,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator, model_validator
 
-from classes.objects.task import Task, TaskLoad
-from classes.data.result_union import ResultUnion
+
+from classes.objects.taskload import TaskLoad
 from constants import PROCESS_STATUSES, PROCESS_STATUSES_RUNNING, PROCESS_STATUSES_FINISHED
 from modules.utils import (
                            dehumanize_timedelta,
@@ -33,19 +37,21 @@ class Process(BaseModel):
     """
     Метаданные процесса обработки данных
     """
-    from classes.objects.sample import Sample
+    
 
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               extra='allow',
                               validate_assignment=True,
-                              protected_namespaces=()
+                              arbitrary_types_allowed=True
+                              #protected_namespaces=()
                              )
 
     # IDS
-    _id: ObjectId|None = Field(
+    db_id: ObjectId|None = Field(
                                default=None,
-                               description="Уникальный идентификатор записи процесса в БД"
+                               description="Уникальный идентификатор записи процесса в БД",
+                               alias='_id'
                               )
     process_id: str = Field(
                             ...,
@@ -68,18 +74,6 @@ class Process(BaseModel):
                          min_length=2,
                          frozen=True
                         )
-    """task_name: str = Field(
-                      default='UNDEFINED',
-                      description="Наименование задания",
-                      min_length=6,
-                      frozen=True
-                     )
-    task_version: str = Field(
-                              default='UNDEFINED',
-                              description="Идентификатор версии задания",
-                              min_length=6,
-                              frozen=True
-                             )"""
     tags: list[str] = Field(
                            default=[],
                            description="Список дополнительных идентификаторов процесса",
@@ -195,9 +189,9 @@ class Process(BaseModel):
                               )
     result_factory: str = Field(description="Путь к функции парсинга результатов обработки данных")
     _result_factory_func: Callable[['Process'], tuple[bool, ResultUnion|None]]|None = PrivateAttr(default=None)
-    _result: ResultUnion|None = Field(
+    # Данные, полученные в результате обработки
+    _result: ResultUnion|None = PrivateAttr(
                                       default=None,
-                                      description="Данные, полученные в результате обработки"
                                      )
 
     #LOG_D
@@ -236,7 +230,7 @@ class Process(BaseModel):
                                )
     software_versions: dict|None = Field(default=None, description='Использованное ПО')
     # для хранения исходного состояния
-    _original: dict[str, Any] = {}
+    _original: dict[str, Any] = PrivateAttr(default={})
     created_at_DB: datetime|None = Field(
                                           default=None,
                                           description="Время создания записи процесса в БД"
@@ -264,6 +258,8 @@ class Process(BaseModel):
         """
         Создаёт экземпляр Process из данных образца и задания.
         """
+        from classes.objects.sample import Sample
+        from classes.objects.task import Task
         process_data = {}
         # process_id parsing
         task_id, task_name, task_version, sample_id, tags = decode_process_id(process_id)
@@ -285,7 +281,7 @@ class Process(BaseModel):
         return Process(
                        process_id=process_id,
                        sample_id=sample_id,
-                       sample_db_id=sample._id,
+                       sample_db_id=sample.db_id,
                        tags=tags,
                        task_id=task_id,
                        weight=weight,
@@ -322,7 +318,7 @@ class Process(BaseModel):
         Сериализует экземпляр Process в документ для загрузки в БД.
         """
         doc = self.model_dump(mode='json', exclude={'result'})
-        doc['_id'] = self._id
+        #doc['_id'] = self._id
         if self.duration is not None:
             doc['duration'] = humanize_timedelta(self.duration)
         

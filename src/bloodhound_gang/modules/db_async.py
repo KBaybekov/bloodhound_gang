@@ -370,7 +370,7 @@ class ConfigurableMongoDAO:
     - Периодический пинг базы данных
     - Корректное освобождение ресурсов
     """
-    _cfg: Dict[str, Any] = DB_CFG
+    _cfg: Dict[str, Any] = field(default_factory=dict)
     """
     Конфигурация подключения и коллекций.
     Ожидает поля: host, user, password, timeout, db_name, collections.
@@ -408,6 +408,7 @@ class ConfigurableMongoDAO:
         Должен быть вызван перед использованием.
         """
         await self._get_mongo_client()
+        self._cfg = DB_CFG
         self.db = self._client[self._cfg['db_name']]
         await self._check_collections()
 
