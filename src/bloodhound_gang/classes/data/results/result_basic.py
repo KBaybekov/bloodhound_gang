@@ -1,13 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from classes.objects.process import Process
 
 from datetime import datetime
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 
+from classes.objects.process import Process
 from modules.utils import obj_size_in_Gb
 
 

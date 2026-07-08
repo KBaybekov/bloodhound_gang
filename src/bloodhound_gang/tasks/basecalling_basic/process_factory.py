@@ -1,11 +1,9 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 
-if TYPE_CHECKING:
-        from classes.objects.process import Process
-        from classes.objects.sample import Sample
-        from classes.objects.task import Task
-
+from classes.objects.process import Process
+from classes.objects.sample import Sample
+from classes.objects.task import Task
 from modules.utils import generate_process_id
 from modules.logger import get_logger
 

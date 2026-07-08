@@ -1,5 +1,4 @@
-from typing import TYPE_CHECKING, Callable
-#if TYPE_CHECKING:
+from typing import Callable
 from logging import Logger
 import asyncio
 import time
@@ -14,7 +13,7 @@ class WatchdogBasic(BaseModel):
     Может запускаться в отдельной asyncio-задаче, работать в бесконечном цикле
     и корректно останавливаться по общему событию.
     """
-                    
+
     name: str = Field(
                       ...,
                       description="Имя вотчдога",

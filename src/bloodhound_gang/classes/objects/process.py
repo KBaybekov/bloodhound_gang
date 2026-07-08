@@ -1,10 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Callable, Dict
-
-if TYPE_CHECKING:
-    from classes.objects.sample import Sample
-    from classes.objects.task import Task, TaskLoad
-    from classes.data.result_union import ResultUnion
+from typing import Any, Callable, Dict
 
 import asyncio
 import re
@@ -14,6 +9,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator, model_validator
 
+from classes.objects.sample import Sample
+from classes.objects.task import Task, TaskLoad
+from classes.data.result_union import ResultUnion
 from constants import PROCESS_STATUSES, PROCESS_STATUSES_RUNNING, PROCESS_STATUSES_FINISHED
 from modules.utils import (
                            dehumanize_timedelta,

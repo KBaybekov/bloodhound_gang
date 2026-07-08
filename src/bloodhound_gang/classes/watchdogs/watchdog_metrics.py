@@ -1,11 +1,6 @@
 # File: classes/watchdogs/watchdog_metrics.py
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Optional, Set
-
-#if TYPE_CHECKING:
-from classes.watchdogs.watchdog_source import WatchdogSource
-from classes.watchdogs.watchdog_processing import WatchdogProcessing
-from modules.db_async import ConfigurableMongoDAO
+from typing import Dict, Optional, Set
 
 import asyncio
 from aiohttp import web
@@ -13,6 +8,9 @@ from pathlib import Path
 from prometheus_client import Gauge, generate_latest, CollectorRegistry
 
 from classes.watchdogs.watchdog_basic import WatchdogBasic
+from classes.watchdogs.watchdog_source import WatchdogSource
+from classes.watchdogs.watchdog_processing import WatchdogProcessing
+from modules.db_async import ConfigurableMongoDAO
 from constants import (
     HTTP_METRICS,
     HTTP_METRICS_PORT,

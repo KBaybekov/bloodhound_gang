@@ -1,19 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Set
-
-#if TYPE_CHECKING:
-from classes.objects.process import Process
-from classes.objects.task import Task, TaskLoad
-from classes.objects.sample import Sample
-from classes.objects.queue import Queue
-from classes.watchdogs.watchdog_basic import WatchdogBasic, time
-from modules.db_async import ConfigurableMongoDAO
+from typing import Any, Dict, List, Literal, Set
 
 import asyncio
 from bson import ObjectId
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
+from classes.objects.process import Process
+from classes.objects.task import Task, TaskLoad
+from classes.objects.sample import Sample
+from classes.objects.queue import Queue
+from classes.watchdogs.watchdog_basic import WatchdogBasic, time
 from constants import (
                        WATCHDOG_PROCESSING_CHECK_INTERVAL,
                        DB_COLLECTION_SAMPLES,
@@ -25,7 +22,7 @@ from constants import (
                        PROCESS_STATUSES_STARTED,
                        PROCESS_STATUSES_RUNNING
                       )
-
+from modules.db_async import ConfigurableMongoDAO
 from modules.utils import load_yaml, file_mtime_changed
 
 class Host(BaseModel):

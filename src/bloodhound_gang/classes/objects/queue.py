@@ -1,12 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Literal, Optional
-
-if TYPE_CHECKING:
-    from classes.objects.process import Process
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 from logging import Logger
 
+from classes.objects.process import Process
 from constants import  PROCESS_STATUSES_CREATED, PROCESS_STATUSES_PLANNED, PROCESS_STATUSES_RUNNING
 from modules.logger import get_logger
 
@@ -247,7 +245,7 @@ class Queue(BaseModel):
                 'running_prior': len_running_prior,
                 'running_non_prior': len_running - len_running_prior
                 }
-        self.logger.debug(f"Stats:\n{'\n'.join(f'{k}: {v}' for k,v in info.items())}") # type: ignore
+        self.logger.debug("Stats:\n%s", '\n'.join(f'{k}: {v}' for k,v in info.items()))
         return None
 
     def refill_planned_processes(self) -> None:

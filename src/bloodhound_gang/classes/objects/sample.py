@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Dict
-
-if TYPE_CHECKING:
-    from classes.data.result_union import ResultUnion
-    from classes.objects.process import Process
-    from tasks.basecalling_basic.result import ResultBasecallingBasic
+from typing import Any, Dict
 
 from bson import ObjectId
 from datetime import datetime, timezone
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, ValidationInfo, ConfigDict
 
+from classes.objects.batch import Batch
+from classes.data.source import SourceData
+from classes.data.files.fastq_ont import FastqONT
+from classes.data.result_union import ResultUnion
+from classes.objects.process import Process
+from tasks.basecalling_basic.result import ResultBasecallingBasic
 from constants import (
                        PASS_SOURCE_DS_NAMES,
                        PASS_BASECALL_DS_NAMES,
@@ -24,9 +25,6 @@ from constants import (
                       )
 from modules.utils import generate_process_id
 from modules.logger import get_logger
-from classes.objects.batch import Batch
-from classes.data.source import SourceData
-from classes.data.files.fastq_ont import FastqONT
 
 logger = get_logger(__name__)
 

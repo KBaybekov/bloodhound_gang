@@ -1,9 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional
-
-if TYPE_CHECKING:
-    from classes.objects.sample import Sample
-    from classes.objects.process import Process
+from typing import Any, Callable, Dict, Literal, Optional
 
 import hashlib
 import json
@@ -11,6 +7,8 @@ from datetime import date
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from classes.objects.sample import Sample
+from classes.objects.process import Process
 from constants import DELIMITER
 from modules.utils import load_callable, parse_str_for_variables_names, str_to_dict, read_tsv, save_yaml
 from modules.logger import get_logger

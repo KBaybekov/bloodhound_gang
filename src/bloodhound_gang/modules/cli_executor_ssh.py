@@ -1,12 +1,9 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from classes.objects.process import Process
 
 import asyncio
 from subprocess import Popen, DEVNULL
 from shlex import join as sh_join, split as sh_split, quote as sh_quote
+from classes.objects.process import Process
 from modules.logger import get_logger
 
 logger = get_logger(__name__)

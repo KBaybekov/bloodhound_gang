@@ -1,13 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from classes.objects.process import Process
-    from classes.data.result_union import ResultUnion
-    from tasks.basecalling_basic.result import ResultBasecallingBasic
-    from classes.data.files.ubam_ont import UbamONT
 
 from pathlib import Path
+
+from classes.objects.process import Process
+from classes.data.result_union import ResultUnion
+from tasks.basecalling_basic.result import ResultBasecallingBasic
+from classes.data.files.ubam_ont import UbamONT
 from tasks.utils import find_one_file, find_list_of_files, check_important_attributes
 from modules.logger import get_logger
 
