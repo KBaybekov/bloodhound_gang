@@ -10,7 +10,7 @@ from classes.objects.batch import Batch
 from classes.data.source import SourceData
 from classes.data.files.fastq_ont import FastqONT
 from classes.data.result_union import ResultUnion
-from classes.objects.process import Process
+
 from tasks.basecalling_basic.result import ResultBasecallingBasic
 from constants import (
                        PASS_SOURCE_DS_NAMES,
@@ -91,6 +91,7 @@ class Sample(BaseModel):
     """
     Метаданные образца Nanopore
     """
+    from classes.objects.process import Process
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               validate_assignment=True,
