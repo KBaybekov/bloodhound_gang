@@ -38,7 +38,7 @@ class WatchdogBasic(BaseModel):
         arbitrary_types_allowed = True  # разрешаем threading.Event
 
     @property
-    def logger(self) -> 'Logger':
+    def logger(self) -> 'Logger': # test
         """
         Логгер, именованный по классу и имени вотчдога.
         """
