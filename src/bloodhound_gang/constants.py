@@ -97,7 +97,7 @@ MAIN_DS = {
            'work_d': Path(os.environ['WORK_D']).resolve()
           }
 
-CFG_D = Path(os.environ['CFG_D']).resolve()
+CFG_D = Path('conf/').resolve()
 CONFIGS = {
            'tasks':CFG_D / "tasks.yaml",
            'hosts':CFG_D / "hosts.yaml",
@@ -109,14 +109,13 @@ CONFIGS = {
 
 # директория для сохранения текущих состояний вотчдогов, очередей, процессов и т.д.
 STATE_D = Path('data/states/').resolve()
-# директория логов
-LOG_D = Path('tmp/logs/').resolve()
+# директория логов (должен указывать на смонтированную директорию logs)
+LOG_D = Path('logs/').resolve()
 LOG_SIZE_MB = 1
 LOG_BACKUP_COUNT = 3
 
-WATCHDOG_SOURCE_CHECK_INTERVAL = 900
-WATCHDOG_PROCESSING_CHECK_INTERVAL = 300
-WATCHDOG_METRICS_CHECK_INTERVAL = 300
+WATCHDOG_SOURCE_CHECK_INTERVAL = int(os.environ['WATCHDOG_SOURCE_CHECK_INTERVAL'])
+WATCHDOG_PROCESSING_CHECK_INTERVAL = int(os.environ['WATCHDOG_PROCESSING_CHECK_INTERVAL'])
 
 HTTP_METRICS = os.environ['HTTP_METRICS']
 HTTP_METRICS_PORT = int(os.environ['HTTP_METRICS_PORT'])

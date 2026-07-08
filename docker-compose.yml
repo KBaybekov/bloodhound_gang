@@ -18,6 +18,9 @@ services:
       # Внешняя папка conf/ затеняет встроенную /home/bloodhound_gang/conf/
       - ./conf:/home/bloodhound_gang/conf:ro
 
+      # Внешняя папка data/logs/ затеняет встроенную /home/bloodhound_gang/conf/
+      - ./data/logs/:/home/bloodhound_gang/logs:rw
+
       # Если существует внешняя папка tasks/, она затеняет src/tasks/
       # Используем bind mount с опциональным созданием (если папки нет, Docker создаст пустую)
       - ./tasks:/home/bloodhound_gang/src/tasks:ro
