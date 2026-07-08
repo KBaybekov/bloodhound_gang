@@ -14,6 +14,7 @@ class WatchdogBasic(BaseModel):
     Может запускаться в отдельной asyncio-задаче, работать в бесконечном цикле
     и корректно останавливаться по общему событию.
     """
+    #from logging import Logger
 
     name: str = Field(
                       ...,
@@ -37,7 +38,7 @@ class WatchdogBasic(BaseModel):
         arbitrary_types_allowed = True  # разрешаем threading.Event
 
     @property
-    def logger(self) -> Logger:
+    def logger(self) -> 'Logger':
         """
         Логгер, именованный по классу и имени вотчдога.
         """
