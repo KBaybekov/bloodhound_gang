@@ -1,4 +1,4 @@
-src/test.py
+src/bloodhound_gang/test.py
 data_other/
 .env
 .vscode/

@@ -6,6 +6,10 @@ RUN useradd --create-home --shell /bin/bash bloodhound_gang
 USER bloodhound_gang
 WORKDIR /home/bloodhound_gang
 
+# Аргумент версии, передаваемый при сборке
+ARG VERSION=unknown
+ENV APP_VERSION=$VERSION
+
 # Установка зависимостей
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
@@ -14,4 +18,4 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 COPY --chown=bloodhound_gang:bloodhound_gang . .
 
 EXPOSE 8000
-CMD ["python", "src/bloodhound_gang.py"]   # если главный скрипт находится в src/
+CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
