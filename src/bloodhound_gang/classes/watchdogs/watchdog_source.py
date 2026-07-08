@@ -1,11 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List
 
-from classes.watchdogs.watchdog_basic import WatchdogBasic
-if TYPE_CHECKING:
-    from classes.objects.sample import Sample
-    
-    from modules.db_async import ConfigurableMongoDAO
+#if TYPE_CHECKING:
+from classes.objects.sample import Sample
+from modules.db_async import ConfigurableMongoDAO
 
 import time
 import asyncio
@@ -18,6 +16,7 @@ from constants import (
                        DB_COLLECTION_TREES,
                        MAIN_DS
                       )
+from classes.watchdogs.watchdog_basic import WatchdogBasic
 from modules.utils import obj_size_in_Gb
 
 class WatchdogSource(WatchdogBasic):

@@ -2,10 +2,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, Optional, Set
 
-if TYPE_CHECKING:
-    from classes.watchdogs.watchdog_source import WatchdogSource
-    from classes.watchdogs.watchdog_processing import WatchdogProcessing
-    from modules.db_async import ConfigurableMongoDAO
+#if TYPE_CHECKING:
+from classes.watchdogs.watchdog_source import WatchdogSource
+from classes.watchdogs.watchdog_processing import WatchdogProcessing
+from modules.db_async import ConfigurableMongoDAO
 
 import asyncio
 from aiohttp import web

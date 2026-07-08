@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable
-if TYPE_CHECKING:
-    from logging import Logger
+#if TYPE_CHECKING:
+from logging import Logger
 import asyncio
 import time
 from pydantic import BaseModel, Field
@@ -14,8 +14,7 @@ class WatchdogBasic(BaseModel):
     Может запускаться в отдельной asyncio-задаче, работать в бесконечном цикле
     и корректно останавливаться по общему событию.
     """
-    #from logging import Logger
-
+                    
     name: str = Field(
                       ...,
                       description="Имя вотчдога",
