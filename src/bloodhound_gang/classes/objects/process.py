@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator, model_validator
 
-from classes.objects.sample import Sample
 from classes.objects.task import Task, TaskLoad
 from classes.data.result_union import ResultUnion
 from constants import PROCESS_STATUSES, PROCESS_STATUSES_RUNNING, PROCESS_STATUSES_FINISHED
@@ -33,7 +32,9 @@ logger = get_logger(__name__)
 class Process(BaseModel):
     """
     Метаданные процесса обработки данных
-    """    
+    """
+    from classes.objects.sample import Sample
+
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               extra='allow',
