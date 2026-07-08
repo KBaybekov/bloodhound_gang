@@ -19,13 +19,13 @@ if pip show dunamai >/dev/null 2>&1; then
         echo ">>> Сборка Docker-образа с версией: $VERSION"
         docker build \
             --build-arg VERSION="$VERSION" \
-            -t "bloodhound_gang:$DOCKER_TAG" \
-            -t "bloodhound_gang:latest" \
+            -t "kbaybekov/bloodhound_gang:$DOCKER_TAG" \
+            -t "kbaybekov/bloodhound_gang:latest" \
             .
 
         echo ">>> Публикация образа в Docker Hub"
-        docker push "bloodhound_gang:$DOCKER_TAG"
-        docker push bloodhound_gang:latest
+        docker push "kbaybekov/bloodhound_gang:$DOCKER_TAG"
+        docker push kbaybekov/bloodhound_gang:latest
 
         echo ">>> Готово: bloodhound_gang:$DOCKER_TAG (и latest) собраны и опубликованы."
     fi
@@ -34,5 +34,3 @@ else
     pip install dunamai
     echo "Now retry building"
 fi
-
-

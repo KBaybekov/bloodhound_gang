@@ -3,7 +3,7 @@ version: "3.8"
 services:
   bloodhound_gang:
     build: .
-    image: bloodhound_gang:latest
+    image: kbaybekov/bloodhound_gang:latest
     container_name: bloodhound_gang
     restart: unless-stopped
     env_file:
@@ -40,8 +40,8 @@ services:
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus/:/prometheus:rw
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -60,7 +60,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ./data/grafana/:/var/lib/grafana
       - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards
