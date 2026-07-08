@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bloodhound_gang"
+dynamic = ["version"]  # <-- Ключевой момент: версия будет динамической
+description = "Sample-driven система обработки данных, реализующая свои функции с помощью системы вотчдогов."
+readme = "README.md"
+authors = [
+    {name = "Ваше Имя", email = "ваш@email.com"},
+]
+license = {text = "MIT"}  # Или ваша лицензия
+requires-python = ">=3.11"
+dependencies = [          # Ваши зависимости, если есть
+    # "requests>=2.28.0",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "my_project.__version__"}  # Брать версию из атрибута
+
+[tool.setuptools.packages.find]
+where = ["src"]           # Указываем, где искать пакеты
