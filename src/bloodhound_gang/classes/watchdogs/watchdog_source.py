@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List
 
+from classes.watchdogs.watchdog_basic import WatchdogBasic
 if TYPE_CHECKING:
     from classes.objects.sample import Sample
-    from classes.watchdogs.watchdog_basic import WatchdogBasic
+    
     from modules.db_async import ConfigurableMongoDAO
 
 import time
