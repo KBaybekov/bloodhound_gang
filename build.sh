@@ -17,7 +17,11 @@ if [ -z "$VERSION" ]; then
         -t bloodhound_gang:latest \
         .
 
-    echo ">>> Готово: bloodhound_gang:$VERSION (и latest)"
+    echo ">>> Публикация образа в Docker Hub"
+    docker push "bloodhound_gang:$VERSION"
+    docker push bloodhound_gang:latest
+
+    echo ">>> Готово: bloodhound_gang:$VERSION (и latest) собраны и опубликованы."
 fi
 
     
