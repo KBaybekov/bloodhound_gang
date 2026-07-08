@@ -94,7 +94,8 @@ class Sample(BaseModel):
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               validate_assignment=True,
-                              extra='ignore'
+                              extra='ignore',
+                              protected_namespaces=()
                              )
     source_d: Path = Field(
                            ...,

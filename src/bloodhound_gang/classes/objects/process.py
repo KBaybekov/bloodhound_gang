@@ -37,7 +37,8 @@ class Process(BaseModel):
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               extra='allow',
-                              validate_assignment=True
+                              validate_assignment=True,
+                              protected_namespaces=()
                              )
 
     # IDS
