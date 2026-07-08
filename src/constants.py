@@ -1,0 +1,122 @@
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+load_dotenv()
+
+PROJECT_NAME = 'ont_processor_v2'
+
+# какие группы отслеживает WatchdogData. ПЕРЕНЕСТИ В ФАЙЛ ДЛЯ ДИНАМИЧЕСКОГО ОБНОВЛЕНИЯ
+DATA_GROUPS_FOR_WATCHING = ['CDNA', 'DNA', 'RNA']
+
+# Билогический вид
+# !!! Если родительская папка образца тут отсутствует, по дефолту будет 'human' (см. classes.sample[96])
+SPECIES = {
+           'Clot2':'Callithrix jacchus',
+           'microbiom': 'Bacteria'
+          }
+
+# Имена подпапок батчей
+SOURCE_DS_NAMES = {
+                   'fast5_pass', 'fast5_fail',
+                   'pod5','pod5_pass', 'pod5_fail'
+                  }
+PASS_SOURCE_DS_NAMES = {'fast5_pass', 'pod5', 'pod5_pass'}
+
+BASECALL_DS_NAMES = {'fastq_pass', 'fastq_fail'}
+PASS_BASECALL_DS_NAMES = {'fastq', 'fastq_pass'}
+
+
+SOURCE_EXTENSIONS = {".fast5", ".pod5"}
+KNOWN_FILE_TYPES = {'txt', 'fq', 'fastq', 'ubam', 'bam', 'cram', 'vcf', 'gvcf'}
+
+PORES = {'unknown', 'r941', 'r1041', 'rp4'}
+# Разделители при именовании файлов
+TASK_DELIMITER = ':'
+DELIMITER = '-'
+
+DEFAULT_BASECALL_MODELS = {
+                           'r941': 'dna_r9.4.1_e8_hac@v3.3',
+                           'r1041': 'dna_r10.4.1_e8.2_400bps_hac@v5.2.0'
+                          }
+
+#unused
+BASECALL_DATA_TYPES = {'unknown', 'ubam', 'fq'}
+
+
+DB_COLLECTION_SAMPLES=os.environ['DB_COLLECTION_SAMPLES']
+DB_COLLECTION_TREES=os.environ['DB_COLLECTION_TREES']
+DB_COLLECTION_PROCESSES=os.environ['DB_COLLECTION_PROCESSES']
+DB_CFG = {
+          'host': os.environ['DB_HOST'],
+          'db_name': os.environ['DB_NAME'],
+          'user': os.environ['DB_USER'],
+          'password': os.environ['DB_PASSWORD'],
+          'timeout': os.environ['DB_TIMEOUT'],
+          'collections': {
+                          DB_COLLECTION_SAMPLES: {'indexes':[{
+                                                  'name':'ix_sample_id',
+                                                  'keys':[['sample_id', 1]]
+                                                 }]},
+                          DB_COLLECTION_TREES: {'indexes':[{
+                                                  'name':'ix_root_path',
+                                                  'keys':[['root_path', 1]]
+                                                 }]},
+                          DB_COLLECTION_PROCESSES: {'indexes':[{
+                                                  'name':'ix_process_id',
+                                                  'keys':[['process_id', 1]]
+                                                 }]}                       
+                         }
+         }
+
+
+PROCESS_STATUSES_CREATED = {'created'}
+PROCESS_STATUSES_PLANNED = {'scheduled'}
+PROCESS_STATUSES_RUNNING = {'running'}
+PROCESS_STATUSES_FINISH_OK = {'completed'}
+PROCESS_STATUSES_FINISH_FAIL = {
+                                'failed[bad_exitcode]',
+                                'failed[bad_pid]',
+                                'failed[bad_processing]',
+                                'failed[bad_pidfile]',
+                                'failed[no_result]',
+                                'failed[result_factory_fail]',
+                                'timeout',
+                                'cancelled'
+                               }
+PROCESS_STATUSES_FINISHED = PROCESS_STATUSES_FINISH_OK | PROCESS_STATUSES_FINISH_FAIL
+PROCESS_STATUSES_NOT_STARTED = PROCESS_STATUSES_CREATED | PROCESS_STATUSES_PLANNED
+PROCESS_STATUSES_UNFINISHED = PROCESS_STATUSES_NOT_STARTED | PROCESS_STATUSES_RUNNING
+PROCESS_STATUSES_STARTED = PROCESS_STATUSES_RUNNING | PROCESS_STATUSES_FINISHED
+PROCESS_STATUSES = PROCESS_STATUSES_NOT_STARTED | PROCESS_STATUSES_RUNNING | PROCESS_STATUSES_FINISHED
+
+# ДИРЕКТОРИИ
+MAIN_DS = {
+           'src_d': Path(os.environ['SRC_D']).resolve(),
+           'res_d': Path(os.environ['RES_D']).resolve(),
+           'work_d': Path(os.environ['WORK_D']).resolve()
+          }
+
+CFG_D = Path(os.environ['CFG_D']).resolve()
+CONFIGS = {
+           'tasks':CFG_D / "tasks.yaml",
+           'hosts':CFG_D / "hosts.yaml",
+           'queues':CFG_D / "queues.yaml",
+           'user_commands':CFG_D / "user_commands.yaml",
+           'nxf_cfg_institution':CFG_D / "nextflow/nxf_csp.cfg"
+          }
+
+
+# директория для сохранения текущих состояний вотчдогов, очередей, процессов и т.д.
+STATE_D = Path('data/states/').resolve()
+# директория логов
+LOG_D = Path('tmp/logs/').resolve()
+LOG_SIZE_MB = 1
+LOG_BACKUP_COUNT = 3
+
+WATCHDOG_SOURCE_CHECK_INTERVAL = 900
+WATCHDOG_PROCESSING_CHECK_INTERVAL = 300
+WATCHDOG_METRICS_CHECK_INTERVAL = 300
+
+HTTP_METRICS = os.environ['HTTP_METRICS']
+HTTP_METRICS_PORT = int(os.environ['HTTP_METRICS_PORT'])

@@ -1,0 +1,25 @@
+hosts:
+  - name: vu10-2-027
+    cpus: 240
+    ram: 1500
+    gpus: 0
+
+  - name: vu10-2-028
+    cpus: 240
+    ram: 1500
+    gpus: 0
+
+  - name: vu10-2-029
+    cpus: 240
+    ram: 1500
+    gpus: 0    
+
+  - name: vu10-2-030
+    cpus: 240
+    ram: 1500
+    gpus: 0
+
+  - name: dgx10-2-06
+    cpus: 240
+    ram: 1500
+    gpus: 8

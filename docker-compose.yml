@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  bloodhound_gang:
+    build: .
+    image: bloodhound_gang:latest
+    container_name: bloodhound_gang
+    restart: unless-stopped
+    env_file:
+      - .env                      # переменные из внешнего .env попадут в окружение контейнера
+    volumes:
+      # SSH-ключи (read-only)
+      - ${HOME}/.ssh:/home/bloodhound_gang/.ssh:ro
+
+      # Внешний .env монтируется как файл, чтобы dotenv мог его прочитать при старте
+      - ./.env:/home/bloodhound_gang/.env:ro
+
+      # Внешняя папка conf/ затеняет встроенную /home/bloodhound_gang/conf/
+      - ./conf:/home/bloodhound_gang/conf:ro
+
+      # Если существует внешняя папка tasks/, она затеняет src/tasks/
+      # Используем bind mount с опциональным созданием (если папки нет, Docker создаст пустую)
+      - ./tasks:/home/bloodhound_gang/src/tasks:ro
+
+      # Рабочие директории (пути берутся из .env, должны существовать на хосте)
+      - ${SRC_D}:${SRC_D}:ro
+      - ${RES_D}:${RES_D}:rw
+      - ${WORK_D}:${WORK_D}:rw
+
+      # Данные (сохраняются на хосте)
+      - ./data/:/home/bloodhound_gang/data/:rw
+
+    ports:
+      - "${HTTP_METRICS_PORT:-8000}:${HTTP_METRICS_PORT:-8000}"
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:12.4.2
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,28 @@
+queues:
+  - name: cpu
+    # имя очереди, включающей в себя данную очередь
+    parent: null
+    concurrency: 20
+    hosts:
+      - vu10-2-027
+      - vu10-2-028
+      - vu10-2-029
+      - vu10-2-030
+  - name: gpu
+    parent: null
+    concurrency: 8
+    # Тут мы указываем общие ресурсы, которые будут раздаваться запускаемым в очереди процессам
+    shared_resources:
+      - gpus: # имя ресурса
+        apply_to: env # env/cmd_vars - куда отправить переменную
+        variable_name: 'GPUS_FOR_BASECALLING' # имя переменной, которое будет передано в рантайм процесса
+        values: # список значений, которые может принять переменная общего ресурса
+        - '0'
+        - '1'
+    hosts:
+      - dgx10-2-06
+  - name: basecalling
+    parent: gpu
+    concurrency: 6
+    hosts:
+      - dgx10-2-06
