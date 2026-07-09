@@ -69,10 +69,10 @@ def result_factory(
                                                     )
         
         if not is_processing_ok:
-            logger.error(f"Process '{process.process_id}'. Bad attribute found during gathering main result values: {bad_attrs}")
+            logger.error("Process '%s'. Bad attribute found during gathering main result values: %r", process.process_id, bad_attrs)
             return is_processing_ok, None
-    except Exception as e:
-        logger.error(f"Process '{process.process_id}'. Exception during gathering main result values: {e}")
+    except Exception:
+        logger.exception("Process '%s'. Exception during gathering main result values.", process.process_id)
         return is_processing_ok, None
     
 
@@ -121,10 +121,10 @@ def result_factory(
                                                          )
             is_processing_ok = is_processing_ok and is_obj_ok
             if not is_processing_ok:
-                logger.error(f"Process '{process.process_id}'. Bad attribute found during gathering values for file {specific_f.as_posix()}: {bad_attrs}")
+                logger.error("Process '%s'. Bad attribute found during gathering values for file %s: %r", process.process_id, specific_f.as_posix(), bad_attrs)
                 continue
-        except Exception as e:
-            logger.error(f"Process '{process.process_id}'. Exception during gathering results for file {specific_f.as_posix()}: {e}")
+        except Exception:
+            logger.exception("Process '%s'. Exception during gathering results for file %s", process.process_id, specific_f.as_posix())
             is_processing_ok = False
             continue
         

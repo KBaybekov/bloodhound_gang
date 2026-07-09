@@ -407,8 +407,8 @@ class ConfigurableMongoDAO:
         Инициализирует DAO: подключается к MongoDB, загружает коллекции и создаёт индексы.
         Должен быть вызван перед использованием.
         """
-        await self._get_mongo_client()
         self._cfg = DB_CFG
+        await self._get_mongo_client()
         self.db = self._client[self._cfg['db_name']]
         await self._check_collections()
 
@@ -615,7 +615,7 @@ class ConfigurableMongoDAO:
                     try:
                         doc['_id'] = ObjectId(doc_id)
                     except Exception:
-                        raise ValueError(f"Не удалось преобразовать _id в ObjectId: {doc_id}")
+                        raise ValueError("Не удалось преобразовать _id в ObjectId: %r", doc_id)
             
             requests.append(UpdateOne(
                                       filter={"_id": doc['_id']},

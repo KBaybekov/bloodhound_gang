@@ -39,8 +39,8 @@ async def main():
             try:
                 await wd.stop()
                 logger.debug("Вотчдог %s остановлен", wd.name)
-            except Exception as e:
-                logger.error("Ошибка при остановке вотчдога %s: %s", wd.name, e)
+            except Exception:
+                logger.exception("Ошибка при остановке вотчдога %s", wd.name)
         # Установим событие для выхода из main
         asyncio.get_running_loop().call_soon_threadsafe(stop_event.set)
         logger.info("Все вотчдоги остановлены, выход из главного цикла")
@@ -60,7 +60,7 @@ async def main():
         await dao.init_dao()
         logger.debug("DAO OK")
     except Exception as e:
-        logger.fatal(f"Ошибка при инициализации DAO: {e}")
+        logger.exception("Ошибка при инициализации DAO.")
         raise e
     
     # Инициализация вотчдогов
@@ -98,7 +98,8 @@ async def main():
             await wd.start()
         logger.info("Все вотчдоги успешно запущены.")
     except Exception as e:
-        logger.exception("Критическая ошибка при запуске вотчдогов: %s", e)
+        logger.exception("Критическая ошибка при запуске вотчдогов.")
+        raise e
 
     # Создаём потоки и связываем остановку
     logger.debug("Registering main async loop...")
@@ -109,11 +110,11 @@ async def main():
         loop.add_signal_handler(signal.SIGINT, shutdown)
         logger.debug("Added SIGINT handler")
     except NotImplementedError:
-        logger.warning("Регистрация обработчика сигналов не поддерживается на данной платформе")
-        return None
+        logger.exception("Регистрация обработчика сигналов не поддерживается на данной платформе")
+        raise
     except Exception as e:
-        logger.exception("Не удалось зарегистрировать обработчик сигналов: %s", e)
-        return None
+        logger.exception("Не удалось зарегистрировать обработчик сигналов")
+        raise e
     else:
         logger.info("Система запущена")
     try:
@@ -126,15 +127,15 @@ async def main():
             try:
                 await wd.join()
                 logger.debug("Вотчдог %s завершил выполнение", wd.name)
-            except Exception as e:
-                logger.error("Ошибка при ожидании завершения вотчдога %s: %s", wd.name, e)
+            except Exception:
+                logger.exception("Ошибка при ожидании завершения вотчдога %s", wd.name)
         
                 # Закрываем DAO
         try:
             await dao.stop_dao()
             logger.info("Соединение с MongoDB закрыто")
         except Exception as e:
-            logger.error("Ошибка при остановке DAO: %s", e)
+            logger.exception("Ошибка при остановке DAO.")
         logger.info("Главный процесс обработки данных завершён")
         return None
 
@@ -144,4 +145,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.warning("Приложение прервано пользователем (KeyboardInterrupt)")
     except Exception as e:
-        logger.critical("Необработанное исключение в главном процессе: %s", e, exc_info=True)
+        logger.exception("Необработанное исключение в главном процессе.")
+        raise e

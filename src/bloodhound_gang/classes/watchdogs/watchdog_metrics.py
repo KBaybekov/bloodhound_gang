@@ -6,6 +6,7 @@ import asyncio
 from aiohttp import web
 from pathlib import Path
 from prometheus_client import Gauge, generate_latest, CollectorRegistry
+from pydantic import ConfigDict
 
 from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.watchdogs.watchdog_source import WatchdogSource
@@ -26,6 +27,9 @@ class WatchdogMetrics(WatchdogBasic):
     """
     Вотчдог для сбора и экспорта метрик Prometheus.
     """
+    model_config = ConfigDict(
+                              extra='allow'
+                             )
 
     def __init__(
         self,
@@ -110,8 +114,8 @@ class WatchdogMetrics(WatchdogBasic):
                 "Метрики доступны на http://%s:%s/metrics",
                 self.ip, self.ip_port
             )
-        except Exception as e:
-            logger.error("Ошибка при запуске сервера: %r", str(e))
+        except Exception:
+            logger.error("Ошибка при запуске сервера")
 
     async def watch(self) -> None:
         await self._gather_metrics_dao()

@@ -67,7 +67,7 @@ def obj_size_in_Gb(
                             ])
 
         except FileNotFoundError:
-            logger.error(f"Объект не найден^: {obj}")
+            logger.exception("Объект не найден: %s", obj.as_posix())
         finally:
             return round((size / 1024 ** 3), precision)
     else:
@@ -114,31 +114,30 @@ def load_yaml(
             try:
                 data = data[subsection]
             except KeyError:
-                logger.error(f"Раздел '{subsection}' не найден в {file_path}")
+                logger.exception("Раздел '%s' не найден в %s", subsection, file_path.as_posix())
                 if critical:
                     raise KeyError
     except UnicodeDecodeError:
-        logger.error(f"Ошибка кодировки файла. Проверьте кодировку: {file_path}.")
+        logger.exception("Ошибка кодировки файла. Проверьте кодировку: %s", file_path.as_posix())
         if critical:
             raise UnicodeDecodeError # type: ignore
     except yaml.YAMLError:
-        logger.error(f"Ошибка парсинга YAML файла: {file_path}")
+        logger.exception("Ошибка парсинга YAML файла: %s", file_path.as_posix())
         if critical:
             raise yaml.YAMLError
     except FileNotFoundError:
-        logger.error(f"Файл не найден: {file_path}")
+        logger.exception("Файл не найден: %s", file_path.as_posix())
         if critical:
             raise FileNotFoundError
     except Exception as e:
-        logger.error(f"Ошибка при открытии YAML файла {file_path}:\n%s",
-                     e, exc_info=True)
+        logger.exception("Ошибка при открытии YAML файла: %s", file_path.as_posix())
         if critical:
-            logger.critical(f"Фатальная ошибка при парсинге YAML {file_path}:\n%s", e, exc_info=True)
+            logger.critical("Фатальная ошибка при парсинге YAML: %s", file_path.as_posix(), exc_info=True)
             raise e
     if data:
-        logger.debug(f"Загружены данные из YAML {file_path}")
+        logger.debug("Загружены данные из YAML: %s", file_path.as_posix())
     else:
-        logger.debug(f"Пустой словарь из YAML {file_path}")
+        logger.debug("Пустой словарь из YAML: %s", file_path.as_posix())
     return data
 
 def save_yaml(filename:Path, data:dict) -> Path:
@@ -217,8 +216,8 @@ def file_mtime_changed(
     file_changed = False
     try:
         file_changed = file_path.stat().st_mtime > old_mtime
-    except Exception as e:
-        logger.error(f"Ошибка при проверке изменения файла {file_path}:%s", e, exc_info=True)
+    except Exception:
+        logger.exception("Ошибка при проверке изменения файла: %s", file_path.as_posix())
         file_changed = True
     return file_changed
 
@@ -310,7 +309,7 @@ def render_text(
     try:
         result = j2_template.render(data)
     except Exception as e:
-        logger.error(f"Error during rendering string: {e}\n\ttemplate:\n\t\t{template}\n\tdata:\n\t\t{data}")
+        logger.exception("Error during rendering string.\n\Template:\n%s\nData:\n%r", template, data)
         raise e
     else:
         rendered_preview = result[:200] + "..." if len(result) > 200 else result
@@ -343,14 +342,14 @@ def load_callable(spec: str|Callable) -> Callable:
                 case _ if ":" in spec:
                     file_path_str, callable_name = spec.split(':', 1)
                     if not callable_name:
-                        raise ValueError(f"Не указано имя вызываемого объекта в '{spec}'")
+                        raise ValueError("Не указано имя вызываемого объекта в '%s'", spec)
                     # 2. Удаляем возможные скобки в конце (например "task()" -> "task")
                     if callable_name.endswith('()'):
                         callable_name = callable_name[:-2]
                     # 3. Преобразуем относительный путь в абсолютный (от текущей рабочей директории)
                     file_path = Path(file_path_str).resolve()
                     if not file_path.exists():
-                        raise FileNotFoundError(f"Файл не найден: {file_path}")
+                        raise FileNotFoundError("Файл не найден: %s", file_path)
                     # 4. Генерируем уникальное имя модуля (на основе пути)
                     module_name = file_path.stem
                     # Добавляем суффикс, чтобы избежать конфликтов имён
@@ -360,26 +359,29 @@ def load_callable(spec: str|Callable) -> Callable:
                     spec_loader = spec_from_file_location(unique_name, file_path)
                     match spec_loader:
                         case None:
-                            raise ImportError(f"Не удалось создать спецификацию для '{file_path}'")
+                            raise ImportError("Не удалось создать спецификацию для %s", file_path)
                         case _:
                             module = module_from_spec(spec_loader)
                     match spec_loader.loader:
                         case None:
-                            raise ImportError(f"Не удалось создать спецификацию для '{file_path}': loader is None")
+                            raise ImportError("Не удалось создать спецификацию для '%s': loader is None", file_path)
                         case _:
                             try:
                                 spec_loader.loader.exec_module(module)
-                            except Exception as e:
-                                raise ImportError(f"Ошибка при выполнении модуля {file_path}: {e}")
+                            except Exception:
+                                logger.exception("Ошибка при выполнении модуля '%s'", file_path.as_posix())
+                                raise ImportError
                             # 6. Получаем атрибут
                             if not hasattr(module, callable_name):
-                                raise AttributeError(f"Модуль {file_path} не содержит атрибут '{callable_name}'")
+                                logger.exception("Модуль %s не содержит атрибут '%s'", file_path.as_posix(), callable_name)
+                                raise AttributeError
                             
                             callable_obj = getattr(module, callable_name)
                             
                             # 7. Проверяем, что объект вызываемый
                             if not callable(callable_obj):
-                                raise ValueError(f"Объект '{callable_name}' в {file_path} не является вызываемым")
+                                logger.exception("Объект '%s' в %s не является вызываемым", callable_name, file_path.as_posix())
+                                raise ValueError
                             logger.debug("Loaded callable from %s: %s", file_path, callable_name)
                             return callable_obj            
                 case _:
@@ -396,7 +398,8 @@ def str_to_dict(string:str) -> dict:
             dict = json.loads(string)
             return dict
         except Exception as e:
-            raise Exception(f"Error during converting str to dict: {e}")
+            logger.exception("Error during converting str to dict. String: %r", string)
+            raise e
     return {}
 
 def is_integer(val):
@@ -441,8 +444,8 @@ def objects_in_dir(
                     pass
             if not any([files_only, dirs_only]):
                 found.extend([file for file in search_func('*')])
-        except Exception as e:
-            logger.error(f"Error during parsing dir {dir_path.as_posix()}: {e}")
+        except Exception:
+            logger.exception("Error during parsing dir %s", dir_path.as_posix())
     else:
         logger.error(f"Dir doesn't exist: {dir_path.as_posix()}")
     return found
@@ -552,9 +555,8 @@ async def check_important_file_objs(
                 if obj.suffix == '.yaml':
                     try:
                         load_yaml(file_path=obj, critical=True)
-                    except Exception as e:
-                        err_msg = f"YAML is not consistent: {obj.as_posix()}"
-                        logger.exception(err_msg, exc_info=True)
+                    except Exception:
+                        logger.exception("YAML is not consistent: %s", obj.as_posix())
                         raise
                 else:
                     if not all([
@@ -563,6 +565,6 @@ async def check_important_file_objs(
                                 os.access(obj, os.R_OK)
                             ]):
                         err_msg = f"{obj_type.upper()}: Object doesn't exist, not file OR not readable: {obj.as_posix()}"
-                        logger.fatal(err_msg)
+                        logger.critical(err_msg, exc_info=True)
                         raise OSError(err_msg)
     return None

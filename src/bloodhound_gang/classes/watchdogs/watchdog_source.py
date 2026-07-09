@@ -4,6 +4,7 @@ from typing import Dict, List
 import time
 import asyncio
 from pathlib import Path
+from pydantic import ConfigDict
 
 from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.objects.sample import Sample
@@ -23,6 +24,9 @@ class WatchdogSource(WatchdogBasic):
     Уровни:
       0 (group) -> 1 (subgroup) -> 2 (sample) -> 3 (batch) -> 4 (файлы/папки внутри batch)
     """
+    model_config = ConfigDict(
+                              extra='allow'
+                             )
 
     def __init__(
         self,
@@ -127,7 +131,7 @@ class WatchdogSource(WatchdogBasic):
                 }
         if old_tree is None:
             # Первый запуск – создаём образцы для всех sample и сохраняем дерево
-            self._process_initial_tree(tree=new_tree, path_parts=[])
+            self._process_initial_tree(tree=new_tree.get('tree', {}), path_parts=[])
             await self._save_tree(new_tree)
         else:
             # Сравниваем и обрабатываем изменения, new_tree мутирует
@@ -150,7 +154,6 @@ class WatchdogSource(WatchdogBasic):
         или словарь {папка_батча:{объект:размер}} (для глубины == batch_depth)
         (для глубины == batch_depth).
         """
-        error_msg = "Ошибка доступа к директории {}:\n{}"
         result = {path.name:{}}
 
         try:
@@ -172,8 +175,8 @@ class WatchdogSource(WatchdogBasic):
                         if current_depth == -1 and item_path.name not in DATA_GROUPS_FOR_WATCHING:
                             continue
                         result[path.name].update(self._scan_directory(item_path, current_depth + 1))
-        except OSError as e:
-            self.logger.error(error_msg.format(path.as_posix(), e))
+        except OSError:
+            self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
         finally:    
             return result
 
@@ -238,10 +241,10 @@ class WatchdogSource(WatchdogBasic):
                                                                       set(new_dict.keys())
                                                                      )
             if new_folders:
-                for d in new_folders:
+                for d in list(new_folders):
                     d_path = base_path / d
                     if not self._is_stable(d_path):
-                        new_folders.remove(d)
+                        new_folders.discard(d)
                         del new_dict[d]
                         continue
                     # Если это sample_level, нужно создать Sample
@@ -342,8 +345,8 @@ class WatchdogSource(WatchdogBasic):
                                         )
             self.samples_to_DB.append(sample.to_db())
             self.logger.debug("New sample (%s) detected, path: %s", sample.sample_id, sample_path.as_posix())
-        except Exception as e:
-            self.logger.error("Failed to create sample for %s: %s", sample_path, e)
+        except Exception:
+            self.logger.exception("Failed to create sample for %s", sample_path.as_posix())
 
     async def _mark_sample_changed(
                              self,
@@ -393,9 +396,9 @@ class WatchdogSource(WatchdogBasic):
                               tree:Dict[str, dict],
                               path_parts: List[Path|str]):
         """Рекурсивно создаёт образцы для всех sample-папок."""
-        d_tree = tree["tree"]
+        #d_tree = tree["tree"]
         current_depth = len(path_parts)
-        for d, d_content in d_tree.items():
+        for d, d_content in tree.items():
             new_path_parts = path_parts + [d]
             if current_depth == self.sample_depth:
                 sample_path = self.source_folder.joinpath(*new_path_parts)
@@ -418,8 +421,8 @@ class WatchdogSource(WatchdogBasic):
                 )
                 self.samples_to_DB.clear()
                 self.logger.debug("Remaining samples saved successfully")
-        except Exception as e:
-            self.logger.error(f"Ошибка при финальном сохранении образцов: {e}")
+        except Exception:
+            self.logger.exception("Ошибка при финальном сохранении образцов.")
         finally:
             await super().cleanup()
             self.logger.info(f"[{self.name}] cleanup завершён")

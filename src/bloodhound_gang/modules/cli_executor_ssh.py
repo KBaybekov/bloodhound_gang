@@ -88,11 +88,11 @@ async def run_ssh_shell_detached(
             process.status = 'running' # PROCESS_STATUSES_RUNNING
             logger.debug("Process '%s' PID %d running on %s", process.process_id, pid, process.host)
         except OSError:
-            logger.error("Process '%s': Не удалось прочитать PID из %s", process.pid_f.as_posix())
+            logger.exception("Process '%s': Не удалось прочитать PID из %s", process.pid_f.as_posix())
             process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         except ValueError:
             process.status = 'failed[bad_pid]' # PROCESS_STATUSES_FINISH_FAIL
-            logger.error(
+            logger.exception(
                         "Process '%s': Wrong content of pidfile '%s': %s",
                         process.process_id, process.pid_f.as_posix(), process.pid_f.read_text().strip()
                         )

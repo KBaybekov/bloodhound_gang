@@ -1,5 +1,8 @@
 src/bloodhound_gang/test.py
 data_other/
+__pycache__/
+logs/
 .env
 .vscode/
 *.pyc
+src/bloodhound_gang/useful_scripts/mongo_connect.py

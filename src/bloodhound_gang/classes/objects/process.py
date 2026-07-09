@@ -396,8 +396,8 @@ class Process(BaseModel):
                         return exitcode
                     else:
                         logger.error(f"Process '{self.process_id}'. Wrong exitcode:\nline: {exitcode}\nfile: {self.exitcode_f.as_posix()}")
-                except Exception as e:
-                    logger.error(f"Process '{self.process_id}'. Error during parsing exitcode file: {e}\nfile: {self.exitcode_f.as_posix()}")
+                except Exception:
+                    logger.exception("Process '%s'. Error during parsing exitcode file. File: %s", self.process_id, self.exitcode_f.as_posix())
             return None
 
         def capture_log_files() -> None:
@@ -441,10 +441,10 @@ class Process(BaseModel):
                                                   ['software' in f.stem,
                                                    f.suffix == '.yml'])),
                                           None)
-                    except Exception as e:
-                        logger.error(f"Process '{self.process_id}'. Error during searching log files in dir {self.log_d.as_posix()}: {e}")
+                    except Exception:
+                        logger.error("Process '%s'. Error during searching log files in dir %s", self.process_id, self.log_d.as_posix())
                 else:
-                    logger.error(f"Process '{self.process_id}'. Log dir doesn't exist: {self.log_d}")
+                    logger.error("Process '%s'. Log dir doesn't exist: %s", self.process_id, self.log_d.as_posix())
 
         def capture_software_versions() -> None:
             """
@@ -491,8 +491,8 @@ class Process(BaseModel):
                 self.exitcode = check_exitcode()
                 if self.exitcode is not None:
                     await self.check_running()
-        except Exception as e:
-            logger.error(f"Process '{self.process_id}'. Error during checking running process: {e}")
+        except Exception:
+            logger.error("Process '%s'. Error during checking running process.", self.process_id)
         finally:
             return None
     
@@ -577,7 +577,7 @@ class Process(BaseModel):
                     pid = int(self.pid_f.read_text().strip())
                     logger.debug("Process '%s': Terminating PID %d on host %s", self.process_id, pid, self.host)
                 except (ValueError, OSError):
-                    logger.warning("Process '%s': Не удалось прочитать PID из %s", self.pid_f)
+                    logger.exception("Process '%s': Не удалось прочитать PID из %s", self.process_id, self.pid_f)
                     return
                     # Отправляем SIGTERM через ssh
                 try:
@@ -591,8 +591,8 @@ class Process(BaseModel):
                     await subproc.wait()
 
                     logger.info("Process '%s': Отправлен SIGTERM процессу %d на %s", self.process_id, pid, self.host)
-                except Exception as e:
-                    logger.error("Process '%s': Ошибка при отправке SIGTERM: %s", self.process_id, e)
+                except Exception:
+                    logger.exception("Process '%s': Ошибка при отправке SIGTERM.", self.process_id)
                 logger.debug("Process '%s': sent SIGTERM to PID %d", self.process_id, pid)
 
                 await asyncio.sleep(5)
@@ -617,15 +617,15 @@ class Process(BaseModel):
                             await subproc.wait()
 
                             logger.warning("Process '%s' %d on %s killed forcibly (SIGKILL)", self.process_id, pid, self.host)
-                        except Exception as e:
-                            logger.error("Process '%s': Ошибка при отправке SIGKILL: %s", self.process_id, e)
+                        except Exception:
+                            logger.exception("Process '%s': Ошибка при отправке SIGKILL.", self.process_id)
                     else:
                         logger.debug("Process '%s': Процесс %d уже завершён.", self.process_id, pid)
                 else:
                     logger.debug("Process '%s': PID-файл исчез, процесс завершился.", self.process_id)
 
-            except Exception as e:
-                logger.error("Process '%s':Error terminating: %s", self.process_id, e)
+            except Exception:
+                logger.exception("Process '%s': Error during terminating subprocess.", self.process_id)
 
     async def check_timeout(self) -> None:
         """

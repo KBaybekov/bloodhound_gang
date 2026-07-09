@@ -42,6 +42,8 @@ class SharedResource(BaseModel):
                   data:dict
                  ) -> 'SharedResource':
         name, vals = next(iter(data.items()))
+        if vals is None:
+            vals = {}
         return SharedResource(
                               name=name,
                               variable_name=vals.get('variable_name', 'UNDEFINED'),
@@ -112,9 +114,9 @@ class Queue(BaseModel):
                              description="Максимальное количество одновременно запущенных процессов",
                              ge=0
                             )
-    shared_resources: set[SharedResource] = Field(
-                                                  default_factory=set,
-                                                  description="Множество общих ресурсов очереди"
+    shared_resources: list[SharedResource] = Field(
+                                                  default=[],
+                                                  description="Список общих ресурсов очереди"
                                                  )
     hosts: set[str] = Field(
                             default_factory=set,
@@ -141,7 +143,7 @@ class Queue(BaseModel):
     def from_source(
                     cls,
                     data:dict
-                   ) -> Optional['Queue']:
+                   ) -> 'Queue':
         logger = get_logger(__name__)
         
         data = data.copy()
@@ -150,13 +152,15 @@ class Queue(BaseModel):
             vals_for_concurr = [0] 
             # Создаём объекты SharedResource
             min_shared_resource = None
-            if data['shared_resources']:
-                shared_resources:set[SharedResource] = set()
-                for sh_data in data['shared_resources']:
+            shared_resources_data = data.get('shared_resources', [])
+            if shared_resources_data:
+                shared_resources:list[SharedResource] = []
+                for sh_data in shared_resources_data:
                     sh_r = SharedResource.from_dict(sh_data)
-                    shared_resources.add(sh_r)
+                    shared_resources.append(sh_r)
+                data['shared_resources'] = shared_resources
                 min_shared_resource = min([len(sh_r.values) for sh_r in shared_resources])
-            concurrency = data['concurrency']
+            concurrency = data.get('concurrency')
 
             if concurrency is not None:
                 vals_for_concurr = [concurrency]
@@ -171,9 +175,9 @@ class Queue(BaseModel):
             # вместо списка - множество
             data.update({'hosts':set(data['hosts'])})
             return Queue(**data)
-        except Exception as e:
-            logger.error(f"Error during creating Queue obj: {e}\nSource:\n\t{data}")
-            return None
+        except Exception:
+            logger.exception("Ошибка при создании объекта Queue. Source:\n%s", data)
+            raise ValueError
         
     @computed_field(description="Определение алгоритма планирования", examples=['ljf', 'sjf'])
     @property
@@ -187,7 +191,7 @@ class Queue(BaseModel):
     @computed_field(description="Логгер класса")
     @property
     def logger(self) -> Logger:
-        return get_logger(f"{self.__class__.__name__}.{self.name}")
+        return get_logger(f"Queue.{self.name}")
 
     async def group_queue_processes(
                               self,
@@ -374,8 +378,8 @@ class Queue(BaseModel):
                         self.processes_unplanned.add(proc)
                     self.processes_planned = {}
                 return None
-        except Exception as e:
-            self.logger.error("Error during refilling planned processes: %s", e)
+        except Exception:
+            self.logger.exception("[Queue '%s']: Error during refilling planned processes.", self.name)
             self.processes_planned = {}
             return None
 

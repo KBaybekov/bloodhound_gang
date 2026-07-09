@@ -17,7 +17,7 @@ class WatchdogBasic(BaseModel):
     name: str = Field(
                       ...,
                       description="Имя вотчдога",
-                      gt=2
+                      min_length=2
                      )
     check_interval: float = Field(default=1.0, gt=0)
     watch_loop_duration: float = Field(
@@ -72,8 +72,9 @@ class WatchdogBasic(BaseModel):
             except asyncio.CancelledError:
                 self.logger.info(f"[{self.name}] Задача отменена")
                 break
-            except Exception as e:
-                self.logger.exception(f"[{self.name}] Ошибка в цикле наблюдения: {e}", exc_info=True)
+            except Exception:
+                self.logger.exception("[%s] Ошибка в цикле наблюдения", self.name)
+                await asyncio.sleep(1)
 
         await self.cleanup()
         self.logger.info(f"[{self.name}] Остановлен")

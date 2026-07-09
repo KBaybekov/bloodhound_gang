@@ -37,7 +37,7 @@ class Host(BaseModel):
     name: str = Field(
                       ...,
                       description="Идентификатор хоста",
-                      ge=1
+                      min_length=1
                      )
     cpus: int = Field(
                       ...,
@@ -115,12 +115,15 @@ class WatchdogProcessing(WatchdogBasic):
     Вотчдог для создания заданий обработки данных Nanopore,
     отслеживания их выполнения, сохранения метаданных процессов в БД
     """
+    model_config = ConfigDict(
+                              extra='allow'
+                             )
 
     def __init__(
                  self,
                  name: str,
                  stop_event: asyncio.Event,
-                 dao:ConfigurableMongoDAO,                       # объект доступа к данным (MongoDB)
+                 dao:ConfigurableMongoDAO,
                  **kwargs
                 ):
         super().__init__(
@@ -140,7 +143,7 @@ class WatchdogProcessing(WatchdogBasic):
         self.task_ready_samples:Dict[str, List[Sample]] = {}
 
         # Хосты
-        self.hosts: set[Host] = set()
+        self.hosts: dict[str,Host] = {}
 
         # Задания обработки и их id
         self.tasks:Dict[str, Task] = {}
@@ -208,11 +211,18 @@ class WatchdogProcessing(WatchdogBasic):
             # создаём объекты Task
             task_list:List[Dict[str, Any]] = next(iter(data.values()))
             for task_data in task_list:
-                # Закидываем конфиг Nextflow, общий для всех заданий
-                task_data.update({'_nxf_cfg_institution':self._nxf_cfg_institution})
-                task = Task.from_source(task_data)
-                if task is not None:
+                try:
+                    # Закидываем конфиг Nextflow, общий для всех заданий
+                    task_data.update({'_nxf_cfg_institution':self._nxf_cfg_institution})
+                    task = Task.from_source(task_data)
+                except Exception:
+                    self.logger.exception("Не удалось создать объект Task. Данные:\n%s", task_data)
+                except ValueError:
+                    # эту ошибку обработали в task.py
+                    pass
+                else:
                     self.tasks.update({task.task_id: task})
+
             self.logger.debug("Loaded %d tasks from config: %s", len(self.tasks), self.tasks.keys())
         return None      
 
@@ -275,14 +285,19 @@ class WatchdogProcessing(WatchdogBasic):
                 else:
                     query.update({'process_id':{"$nin":do_not_load_processes}})
 
-            db_processes = {
-                            doc['process_id']: Process.from_db(doc)
+            db_processes = [
+                            Process.from_db(doc)
                             for doc in await self.dao.find(
                                                    collection=self.db_collection_processes,
                                                    query=query
                                                   )
-                           }
-            self.processes.update(db_processes)
+                           ]
+            if db_processes:
+                self.logger.debug("Found %d non-finished processes", len(db_processes))
+                self.processes.update({process.process_id:process for process in db_processes})
+            else:
+                self.logger.debug("No non-finished processes in DB")
+
             return None
 
     async def _get_processes(
@@ -402,10 +417,12 @@ class WatchdogProcessing(WatchdogBasic):
                 self.logger.debug("Process '%s' finished with status '%s'", proc_id, proc.status)
                 # убираем процесс из списка запущенных и регистрируем изменения в связанных объектах
                 del self.running_processes[proc_id]
-                for host in self.hosts:
-                    if host.name == proc.host:
+                if self.hosts:
+                    host = self.hosts.get(proc.host)
+                    if host:
                         host.compute_load(proc, action='remove')
-                        break
+                    else:
+                        self.logger.warning("Не найден хост для процесса %s", proc.process_id)
                 sample = await self.get_sample(proc.sample_db_id)
                 if sample is not None:
                     sample.store_process_status(proc)
@@ -449,8 +466,8 @@ class WatchdogProcessing(WatchdogBasic):
         Определяет хост, на котором будет запущен процесс.
         """
         queue_hosts = [
-                       host for host in self.hosts
-                       if host.name in self.queues[proc.queue].hosts
+                       host for host_name, host in self.hosts.items()
+                       if host_name in self.queues[proc.queue].hosts
                       ]
         occupations = {
                        h.occupation:h
@@ -508,9 +525,12 @@ class WatchdogProcessing(WatchdogBasic):
 
             # Освобождаем ресурсы
             if process.host is not None:
-                for h in self.hosts:
-                    if h.name == process.host:
-                        h.compute_load(process, action='remove')
+                if self.hosts:
+                    host = self.hosts.get(process.host)
+                    if host:
+                        host.compute_load(process, action='remove')
+                    else:
+                        self.logger.warning("Не найден хост для процесса %s", process.process_id)
             if process.queue in self.queues:
                 self.queues[process.queue].process_finished(process)
             if process.process_id in self.running_processes:
@@ -519,8 +539,8 @@ class WatchdogProcessing(WatchdogBasic):
             if sample is not None:
                 sample.store_process_status(process)
             self.logger.debug("Process '%s' terminated and resources released", process.process_id)
-        except Exception as e:
-            self.logger.error("'Process %s': Ошибка при остановке процесса %s", process.process_id, e)
+        except Exception:
+            self.logger.error("'Process %s': Ошибка при остановке процесса", process.process_id)
 
     # ------------------------------------------------------------------
     # Работа с очередями
@@ -549,35 +569,40 @@ class WatchdogProcessing(WatchdogBasic):
                                       pipeline=pipeline)
             
             for doc in docs:
-                queue = doc.get('queue', None)
-                if queue is not None:
-                    proc_id = doc.get('process_id', None)
-                    if proc_id is not None:
-                        queue_number = doc.get('queue_number', None)
-                        if queue_number is not None:
-                            last_started.update({queue:{proc_id:queue_number}})
+                if doc:
+                    queue = doc.get('queue', None)
+                    if queue is not None:
+                        proc_id = doc.get('process_id', None)
+                        if proc_id is not None:
+                            queue_number = doc.get('queue_number', None)
+                            if queue_number is not None:
+                                last_started.update({queue:{proc_id:queue_number}})
             return last_started
 
         # Получаем последние порядковые номера запущенных в очередях процессов для продолжения счёта
         last_started_processes = await get_last_queue_numbers()
-        # Формируем списки процессов в очередях
-        for queue in self.queues.values():
-            queue.last_started_process = last_started_processes.get(queue.name, {})
-            queue_unfinished_processes = set(
-                                             proc for proc in self.processes.values()
-                                             if all([
-                                                     proc.queue == queue.name,
-                                                     proc.status in PROCESS_STATUSES_UNFINISHED
-                                                    ])
-                                            )
-            if queue_unfinished_processes:
-                await queue.group_queue_processes(proc_set=queue_unfinished_processes)
-            # сохраняем изменения статусов всех процессов очереди
-            for proc in queue_unfinished_processes:
-                if proc._changed:
-                    sample = await self.get_sample(proc.sample_db_id)
-                    if sample is not None:
-                        sample.store_process_status(proc)
+        if last_started_processes:
+            self.logger.debug('Last started processes for queues: %s', last_started_processes)
+            # Формируем списки процессов в очередях
+            for queue in self.queues.values():
+                if queue is None:
+                    continue
+                queue.last_started_process = last_started_processes.get(queue.name, {})
+                queue_unfinished_processes = set(
+                                                proc for proc in self.processes.values()
+                                                if all([
+                                                        proc.queue == queue.name,
+                                                        proc.status in PROCESS_STATUSES_UNFINISHED
+                                                        ])
+                                                )
+                if queue_unfinished_processes:
+                    await queue.group_queue_processes(proc_set=queue_unfinished_processes)
+                # сохраняем изменения статусов всех процессов очереди
+                for proc in queue_unfinished_processes:
+                    if proc._changed:
+                        sample = await self.get_sample(proc.sample_db_id)
+                        if sample is not None:
+                            sample.store_process_status(proc)
 
     def _load_queues(
                      self,
@@ -604,10 +629,18 @@ class WatchdogProcessing(WatchdogBasic):
                             parent_concurrency = parent_data.get('concurrency', None)
                         queue_data.update({'parent_concurrency':parent_concurrency})
                         # Формируем объект Queue
-                        queue_name = queue_data.get('name', None)
-                        self.queues.update({queue_name:Queue.from_source(queue_data)})
-                    except Exception as e:
-                        self.logger.error(f"Error during creating Queue obj: {e}\nData:\n\t{queue_data}")
+                        try:
+                            queue_name = queue_data['name']
+                            queue = Queue.from_source(queue_data)
+                        except Exception:
+                            self.logger.error("Не удалось создать объект Queue. Данные:\n%s", queue_data)
+                        except ValueError:
+                            # эту ошибку обработали в queue.py
+                            pass
+                        else:
+                            self.queues.update({queue_name:queue})
+                    except Exception:
+                        self.logger.error("Ошибка при создании объекта Queue. Данные:\n%s", queue_data)
             self.logger.debug("Loaded %d queues from config: %s", len(self.queues), self.queues.keys())
         return None
 
@@ -635,8 +668,7 @@ class WatchdogProcessing(WatchdogBasic):
                     else:
                         raise KeyError
         except KeyError:
-            err_msg = f"Не найден образец в БД (_id = '{str(obj_id)}')"
-            self.logger.error(err_msg)
+            self.logger.exception("Не найден образец в БД (_id = '%s')", obj_id)
         else:
             self.samples.update({sample._id:sample})
         finally:
@@ -671,10 +703,10 @@ class WatchdogProcessing(WatchdogBasic):
                 if host_data:
                     try:
                         host = Host(**host_data)
-                        self.hosts.add(host)
+                        self.hosts.update({host.name:host})
                     except Exception as e:
                         self.logger.error(f"Error during creating Host obj: {e}\nData:\n\t{host_data}")
-            self.logger.debug("Loaded %d hosts from config: %s", len(self.hosts), [h.name for h in self.hosts])
+            self.logger.debug("Loaded %d hosts from config: %s", len(self.hosts.keys()), [h.name for h in self.hosts.values()])
         return None
 
     def load_cfg_yaml_if_it_changed(
@@ -778,6 +810,7 @@ class WatchdogProcessing(WatchdogBasic):
                                     if stop_these_processes:
                                         self.logger.debug("Stopping processes by user command: %s", ', '.join(stop_these_processes))
                                         await self.stop_processes(stop_these_processes)
+                    self.logger.debug('All commands processed.')
             return None
 
         check_interval = 5
@@ -807,8 +840,8 @@ class WatchdogProcessing(WatchdogBasic):
         try:
             await self._save_objects_to_db()
             self.logger.info("[%s] Оставшиеся изменения сохранены в БД", self.name)
-        except Exception as e:
-            self.logger.error(f"Ошибка при финальном сохранении: {e}")
+        except Exception:
+            self.logger.error("Ошибка при финальном сохранении.")
         else:
             # Освобождаем ссылки
             self.processes.clear()

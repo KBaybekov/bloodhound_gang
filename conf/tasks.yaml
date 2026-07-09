@@ -1,6 +1,6 @@
 tasks:
 - name: 'basecalling_basic'
-  draft: true
+  applicable_samples: null
   version: '300626bab8'
   description: 'Базовый бейсколлинг, осуществляемый без модификаций'
   db_query: '{ "$expr": { "$gt": [ { "$size": { "$setDifference": [ "$source.s_id",
@@ -16,6 +16,6 @@ tasks:
     gpus: 1
   timeout: '1D'
   priority: true
-  nxf_cfg_params: 'src/tasks/basecalling_basic/nxf_basecalling.config'
-  process_factory: 'src/tasks/basecalling_basic/process_factory.py:process_factory()'
-  result_factory: 'src/tasks/basecalling_basic/result_factory.py:result_factory()'
+  nxf_cfg_params: 'basecalling_basic/nxf_basecalling.config'
+  process_factory: 'basecalling_basic/process_factory.py'
+  result_factory: 'basecalling_basic/result_factory.py'

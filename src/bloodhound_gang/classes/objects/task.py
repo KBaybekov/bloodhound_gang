@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Any, Callable, Dict, Literal, TYPE_CHECKING, Optional
-if TYPE_CHECKING:
-    from classes.objects.process import Process
-    from classes.objects.sample import Sample
+from typing import Any, Callable, Dict, Literal, TYPE_CHECKING
+#if TYPE_CHECKING:
+#    from classes.objects.process import Process
+#    from classes.objects.sample import Sample
 
 import hashlib
 import json
@@ -10,6 +10,8 @@ from datetime import date
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from classes.objects.process import Process
+from classes.objects.sample import Sample
 from classes.objects.taskload import TaskLoad
 from constants import DELIMITER
 from modules.utils import load_callable, parse_str_for_variables_names, str_to_dict, read_tsv, save_yaml
@@ -94,37 +96,56 @@ class Task(BaseModel):
     def from_source(
                     cls,
                     data:Dict[str, Any]
-                   ) -> Optional['Task']:
+                   ) -> 'Task':
         logger = get_logger(__name__)
 
         try:
             db_query = str_to_dict(data['db_query'])
-            process_factory = load_callable(data['process_factory'])
+
+            task_path = Path('.').resolve() / "src/bloodhound_gang/tasks/"
+            # Формируем пути для process_factory и result_factory (изначально это относительные пути типа 'basecalling_basic/process_factory.py')
+            process_factory_rel:str = data['process_factory']
+            process_factory_str = (task_path / process_factory_rel).as_posix() + ':process_factory()'
+            result_factory_rel:str = data['result_factory']
+            result_factory_str = (task_path / result_factory_rel).as_posix() + ':result_factory()'
+            process_factory = load_callable(process_factory_str)
+            # Формируем путь для nxf_cfg_params
+            nxf_cfg_params_rel:str = data['nxf_cfg_params']
+            nxf_cfg_params = task_path / nxf_cfg_params_rel
+
             load = TaskLoad(**data['load'])
-            if data['applicable_samples'] != 'all_samples_applicable':
-                if '; ' in data['applicable_samples']:
-                    data['applicable_samples'] = data['applicable_samples'].split('; ')
-                else:
-                    data['applicable_samples'] = read_tsv(
-                                                        Path(data['applicable_samples'],).resolve(),
-                                                        one_col=True
-                                                        ).get('samples', [])
+
+            applicable_samples = data.get('applicable_samples', None)
+            match applicable_samples:
+                case None:
+                    data['applicable_samples'] = []
+                case 'all_samples_applicable':
+                    pass
+                case _:
+                    if '; ' in applicable_samples:
+                        data['applicable_samples'] = applicable_samples.split('; ')
+                    else:
+                        data['applicable_samples'] = read_tsv(
+                                                            Path(applicable_samples).resolve(),
+                                                            one_col=True
+                                                            ).get('samples', [])
             data.update({
                          'db_query':db_query,
                          'process_factory':process_factory,
-                         'nxf_cfg_params': Path(data['nxf_cfg_params']).resolve(),
+                         'result_factory':result_factory_str,
+                         'nxf_cfg_params': nxf_cfg_params,
                          'load': load
                         })
 
             return Task(**data)
-        except Exception as e:
-            logger.error(f"Error during creating Task obj: {e}\nSource:\n\t{data}")
-            return None
+        except Exception:
+            logger.error("Ошибка при создании объекта Task. Source:\n%s", data)
+            raise ValueError
 
     @classmethod
     def generate_task_yaml(
                            cls,
-                           tsv:Path
+                           tsv:Path|str
                           ) -> None:
         """
         Автоматическая генерация шаблона задания на основе данных из TSV файла
@@ -144,7 +165,8 @@ class Task(BaseModel):
                         pass
             return res
             
-
+        if isinstance(tsv, str):
+            tsv = Path(tsv).resolve()
         # Атрибуты, содержащие пути к файлам
         file_attrs = ['nxf_cfg_params', 'process_factory', 'result_factory']
         text_params_to_hash = ['cmd', 'environment_variables']

@@ -103,7 +103,7 @@ CONFIGS = {
            'hosts':CFG_D / "hosts.yaml",
            'queues':CFG_D / "queues.yaml",
            'user_commands':CFG_D / "user_commands.yaml",
-           'nxf_cfg_institution':CFG_D / "nextflow/nxf_csp.cfg"
+           'nxf_cfg_institution':CFG_D / "nextflow/nxf_csp.config"
           }
 
 
@@ -111,7 +111,7 @@ CONFIGS = {
 STATE_D = Path('data/states/').resolve()
 # директория логов (должен указывать на смонтированную директорию logs)
 LOG_D = Path('logs/').resolve()
-LOG_SIZE_MB = 1
+LOG_SIZE_MB = 10
 LOG_BACKUP_COUNT = 3
 
 WATCHDOG_SOURCE_CHECK_INTERVAL = int(os.environ['WATCHDOG_SOURCE_CHECK_INTERVAL'])
