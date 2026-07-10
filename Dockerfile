@@ -15,7 +15,18 @@ COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Копирование исходного кода (включая conf/ и src/tasks/ по умолчанию)
-COPY --chown=bloodhound_gang:bloodhound_gang . .
+COPY \
+--chown=bloodhound_gang:bloodhound_gang \
+--exclude=src/data_other \
+--exclude=.env \
+--exclude=Dockerfile \
+--exclude=docker-compose.yml \
+--exclude=build.sh \
+--exclude=grafana/ \
+--exclude=prometheus \
+--exclude=.vscode \
+--exclude=logs/ \
+. . 
 
 EXPOSE 8000
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
