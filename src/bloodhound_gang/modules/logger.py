@@ -12,10 +12,7 @@ from datetime import datetime
 
 from constants import LOG_BACKUP_COUNT, LOG_D, LOG_SIZE_MB, PROJECT_NAME
 
-#now = datetime.now()
-#formatted_time = now.strftime("%d-%m-%Y_%H:%M:%S")
 
-#log_file = Path(f'/mnt/cephfs8_rw/nanopore2/logs/ont2db/log_{formatted_time}.csv').resolve()
 log_max_size = LOG_SIZE_MB * 1024 * 1024
 log_file = LOG_D / f'{PROJECT_NAME}_{datetime.now().strftime("%d-%m-%Y_%H:%M:%S")}.tsv'
 errors_log_file = LOG_D / f'{PROJECT_NAME}_{datetime.now().strftime("%d-%m-%Y_%H:%M:%S")}_error.tsv'
@@ -23,7 +20,6 @@ log_file.parent.mkdir(exist_ok=True, parents=True)
 
 # Список колонок для заголовка
 CSV_COLUMNS = ["Day", "Month", "Year", "Hour", "Minutes", "Seconds", "Microseconds", "Level", "Logger", "Location", "Message"]
-
 
 class CsvFormatter(Formatter):
     def __init__(self):
@@ -120,82 +116,13 @@ def _init_handlers():
 
     _log_initialized = True
 
-
 def get_logger(name:str):
     _init_handlers()
     logger = getLogger(name)
     # Чтобы избежать дублирования логов при повторных вызовах get_logger
-    if not logger.handlers:
+    if not logger.handlers and _file_handler is not None and _error_file_handler is not None and _stream_handler is not None:
         logger.setLevel(DEBUG)
         logger.addHandler(_file_handler)
         logger.addHandler(_error_file_handler)
         logger.addHandler(_stream_handler)
     return logger
-
-'''
-# ---- Глобальные обработчики, создаются один раз при импорте модуля ----
-_file_handler = CSVRotatingFileHandler(
-    log_file,
-    maxBytes=log_max_size,
-    backupCount=LOG_BACKUP_COUNT,
-    encoding='utf-8'
-)
-_file_handler.setLevel(DEBUG)
-_file_handler.setFormatter(CsvFormatter())
-
-_error_file_handler = CSVRotatingFileHandler(
-    errors_log_file,
-    maxBytes=log_max_size,
-    backupCount=LOG_BACKUP_COUNT,
-    encoding='utf-8'
-)
-_error_file_handler.setLevel(ERROR)
-_error_file_handler.setFormatter(CsvFormatter())
-
-# Консольный обработчик тоже создаём один раз
-console_fmt = Formatter(
-    fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s",
-    datefmt="%d.%m.%Y %H:%M:%S",
-)
-_stream_handler = StreamHandler()
-_stream_handler.setLevel(INFO)
-_stream_handler.setFormatter(console_fmt)
-'''
-
-'''
-# Console format
-console_fmt = Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(funcName)s:%(lineno)d | %(message)s",
-        datefmt="%d.%m.%Y %H:%M:%S",
-    )
-
-def get_file_handler():
-    """Возвращает ротируемый обработчик для основного CSV-лога (все уровни)."""
-    handler = CSVRotatingFileHandler(
-        log_file,
-        maxBytes=log_max_size,
-        backupCount=LOG_BACKUP_COUNT,
-        encoding='utf-8'
-    )
-    handler.setLevel(DEBUG)
-    handler.setFormatter(CsvFormatter())
-    return handler
-
-def get_error_file_handler():
-    """Возвращает ротируемый обработчик для файла предупреждений (WARNING+)."""
-    handler = CSVRotatingFileHandler(
-        errors_log_file,
-        maxBytes=log_max_size,
-        backupCount=LOG_BACKUP_COUNT,
-        encoding='utf-8'
-    )
-    handler.setLevel(ERROR)
-    handler.setFormatter(CsvFormatter())
-    return handler
-
-def get_stream_handler():
-    stream_handler = StreamHandler()
-    stream_handler.setLevel(INFO)
-    stream_handler.setFormatter(console_fmt)
-    return stream_handler
-'''

@@ -4,6 +4,15 @@ from pathlib import Path
 
 load_dotenv()
 
+def request_env_variable(
+                         variable_name:str
+                        ) -> str:
+    """
+    Загружает .env-файл и возвращает значение запрошенной переменной 
+    """
+    load_dotenv()
+    return os.environ[variable_name]
+
 PROJECT_NAME = 'ont_processor_v2'
 
 # какие группы отслеживает WatchdogData. ПЕРЕНЕСТИ В ФАЙЛ ДЛЯ ДИНАМИЧЕСКОГО ОБНОВЛЕНИЯ
@@ -113,9 +122,6 @@ STATE_D = Path('data/states/').resolve()
 LOG_D = Path('logs/').resolve()
 LOG_SIZE_MB = 10
 LOG_BACKUP_COUNT = 3
-
-WATCHDOG_SOURCE_CHECK_INTERVAL = int(os.environ['WATCHDOG_SOURCE_CHECK_INTERVAL'])
-WATCHDOG_PROCESSING_CHECK_INTERVAL = int(os.environ['WATCHDOG_PROCESSING_CHECK_INTERVAL'])
 
 HTTP_METRICS = os.environ['HTTP_METRICS']
 HTTP_METRICS_PORT = int(os.environ['HTTP_METRICS_PORT'])

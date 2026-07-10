@@ -4,6 +4,7 @@ import asyncio
 import time
 from pydantic import BaseModel, Field
 
+from constants import request_env_variable
 from modules.logger import get_logger
 
 
@@ -19,6 +20,12 @@ class WatchdogBasic(BaseModel):
                       description="Имя вотчдога",
                       min_length=2
                      )
+    interval_env_variable: str = Field(
+                                       ...,
+                                       min_length=5,
+                                       description='''Название переменной окружения,
+                                       кодирующей частоту выполнения основного цикла вотчдога'''
+                                      )
     check_interval: float = Field(default=1.0, gt=0)
     watch_loop_duration: float = Field(
                                       default=0,
@@ -36,7 +43,7 @@ class WatchdogBasic(BaseModel):
         arbitrary_types_allowed = True  # разрешаем threading.Event
 
     @property
-    def logger(self) -> 'Logger': # test
+    def logger(self) -> 'Logger':
         """
         Логгер, именованный по классу и имени вотчдога.
         """
@@ -68,6 +75,9 @@ class WatchdogBasic(BaseModel):
                 loop_end_time = time.time()
                 self.watch_loop_duration = loop_end_time - self.watch_loop_start_time
                 self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
+                
+                # Обновляем интервал проверки для вотчдога
+                self.check_interval = float(request_env_variable(self.interval_env_variable))
                 await asyncio.sleep(max([(self.check_interval - self.watch_loop_duration), 5]))
             except asyncio.CancelledError:
                 self.logger.info(f"[{self.name}] Задача отменена")

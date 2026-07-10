@@ -13,11 +13,9 @@ from classes.watchdogs.watchdog_source import WatchdogSource
 from classes.watchdogs.watchdog_processing import WatchdogProcessing
 from modules.db_async import ConfigurableMongoDAO
 from constants import (
-    HTTP_METRICS,
-    HTTP_METRICS_PORT,
-    WATCHDOG_PROCESSING_CHECK_INTERVAL,
-    WATCHDOG_SOURCE_CHECK_INTERVAL,
-)
+                       HTTP_METRICS,
+                       HTTP_METRICS_PORT
+                      )
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,10 +42,7 @@ class WatchdogMetrics(WatchdogBasic):
         super().__init__(
             name=name,
             stop_event=stop_event,
-            check_interval=min(
-                WATCHDOG_PROCESSING_CHECK_INTERVAL,
-                WATCHDOG_SOURCE_CHECK_INTERVAL,
-            ),
+            interval_env_variable='WATCHDOG_METRICS_CHECK_INTERVAL',
             **kwargs,
         )
         self.wd_s: WatchdogSource = watchdog_source

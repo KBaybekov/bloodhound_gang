@@ -10,7 +10,6 @@ from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.objects.sample import Sample
 from constants import (
                        DATA_GROUPS_FOR_WATCHING,
-                       WATCHDOG_SOURCE_CHECK_INTERVAL,
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
                        MAIN_DS
@@ -40,7 +39,7 @@ class WatchdogSource(WatchdogBasic):
         super().__init__(
                          name=name,
                          stop_event=stop_event,
-                         check_interval=WATCHDOG_SOURCE_CHECK_INTERVAL,
+                         interval_env_variable='WATCHDOG_SOURCE_CHECK_INTERVAL',
                          **kwargs
                         )
         self.dao = dao

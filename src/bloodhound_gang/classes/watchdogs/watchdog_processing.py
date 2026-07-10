@@ -12,7 +12,6 @@ from classes.objects.sample import Sample
 from classes.objects.queue import Queue
 from classes.watchdogs.watchdog_basic import WatchdogBasic, time
 from constants import (
-                       WATCHDOG_PROCESSING_CHECK_INTERVAL,
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_PROCESSES,
                        MAIN_DS,
@@ -129,7 +128,7 @@ class WatchdogProcessing(WatchdogBasic):
         super().__init__(
                          name=name,
                          stop_event=stop_event,
-                         check_interval=WATCHDOG_PROCESSING_CHECK_INTERVAL,
+            interval_env_variable='WATCHDOG_PROCESSING_CHECK_INTERVAL',
                          **kwargs
                         )
         self.dao = dao
@@ -215,11 +214,11 @@ class WatchdogProcessing(WatchdogBasic):
                     # Закидываем конфиг Nextflow, общий для всех заданий
                     task_data.update({'_nxf_cfg_institution':self._nxf_cfg_institution})
                     task = Task.from_source(task_data)
-                except Exception:
-                    self.logger.exception("Не удалось создать объект Task. Данные:\n%s", task_data)
                 except ValueError:
                     # эту ошибку обработали в task.py
                     pass
+                except Exception:
+                    self.logger.exception("Не удалось создать объект Task. Данные:\n%s", task_data)
                 else:
                     self.tasks.update({task.task_id: task})
 
@@ -256,7 +255,7 @@ class WatchdogProcessing(WatchdogBasic):
                 self.task_ready_samples[task_id] = []
                 for doc in docs:
                     sample = Sample.from_db(doc)
-                    self.samples.update({sample._id:sample})
+                    self.samples.update({sample.db_id:sample})
                     self.task_ready_samples[task_id].append(sample)
                 self.logger.debug("Task '%s': %d samples ready for processing", task_id, len(docs))
         return None
@@ -417,12 +416,13 @@ class WatchdogProcessing(WatchdogBasic):
                 self.logger.debug("Process '%s' finished with status '%s'", proc_id, proc.status)
                 # убираем процесс из списка запущенных и регистрируем изменения в связанных объектах
                 del self.running_processes[proc_id]
-                if self.hosts:
-                    host = self.hosts.get(proc.host)
-                    if host:
-                        host.compute_load(proc, action='remove')
-                    else:
-                        self.logger.warning("Не найден хост для процесса %s", proc.process_id)
+                if proc.host is not None:
+                    if self.hosts:
+                        host = self.hosts.get(proc.host)
+                        if host:
+                            host.compute_load(proc, action='remove')
+                        else:
+                            self.logger.warning("Не найден хост для процесса %s", proc.process_id)
                 sample = await self.get_sample(proc.sample_db_id)
                 if sample is not None:
                     sample.store_process_status(proc)
@@ -632,11 +632,11 @@ class WatchdogProcessing(WatchdogBasic):
                         try:
                             queue_name = queue_data['name']
                             queue = Queue.from_source(queue_data)
-                        except Exception:
-                            self.logger.error("Не удалось создать объект Queue. Данные:\n%s", queue_data)
                         except ValueError:
                             # эту ошибку обработали в queue.py
                             pass
+                        except Exception:
+                            self.logger.error("Не удалось создать объект Queue. Данные:\n%s", queue_data)
                         else:
                             self.queues.update({queue_name:queue})
                     except Exception:
@@ -670,7 +670,7 @@ class WatchdogProcessing(WatchdogBasic):
         except KeyError:
             self.logger.exception("Не найден образец в БД (_id = '%s')", obj_id)
         else:
-            self.samples.update({sample._id:sample})
+            self.samples.update({sample.db_id:sample})
         finally:
             return sample
 
