@@ -340,7 +340,10 @@ def load_callable(spec: str|Callable) -> Callable:
         case str():
             match spec:
                 case _ if ":" in spec:
-                    file_path_str, callable_name = spec.split(':', 1)
+                    # Экранируем ":" в папках
+                    string_without_directory = spec.split('/')[-1]
+                    callable_name = string_without_directory.split(':')[-1]
+                    file_path_str = spec.removesuffix(f":{callable_name}")
                     if not callable_name:
                         raise ValueError("Не указано имя вызываемого объекта в '%s'", spec)
                     # 2. Удаляем возможные скобки в конце (например "task()" -> "task")

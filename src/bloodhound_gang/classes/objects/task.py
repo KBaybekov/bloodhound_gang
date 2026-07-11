@@ -1,8 +1,5 @@
 from __future__ import annotations
-from typing import Any, Callable, Dict, Literal, TYPE_CHECKING
-#if TYPE_CHECKING:
-#    from classes.objects.process import Process
-#    from classes.objects.sample import Sample
+from typing import Any, Callable, Dict, Literal
 
 import hashlib
 import json
@@ -44,8 +41,8 @@ class Task(BaseModel):
                                       default=Path('/dev/null'),
                                       description="Конфиг Nextflow с надстройками организации"
                                      )
-    applicable_samples: list[str]|Literal['all_samples_applicable'] = Field(
-                                            default='all_samples_applicable',
+    applicable_samples: list[str]|Literal['no']|None = Field(
+                                            default=None,
                                             description="""ID образцов, подходящих для задания.
                                                            Если значение 'all_samples_applicable' - обрабатываться будут все подходящие образцы.
                                                            Также можно перечислить через '; ' id конкретных образцов"""
@@ -95,9 +92,32 @@ class Task(BaseModel):
     @classmethod
     def from_source(
                     cls,
-                    data:Dict[str, Any]
+                    data:Dict[str, Any],
                    ) -> 'Task':
-        logger = get_logger(__name__)
+        def __prepare_applicable_samples_field(
+                                       field:str|None
+                                      ) -> Literal['no']|list[str]|None:
+            """
+            Подготовка данных для создания объекта Task
+            Интерпретация поля applicable_samples:
+                - если оно пустое или отсутствует, задание применимо ко всем образцам
+                - если его значение 'no' - ни один образец не будет обработан
+                - Если оно содержит "; " - поле разбивается на список, каждый элемент списка - sample_id
+                - Наконец, любая другая строка воспринимается как путь к CSV со списком образцов
+            """
+            match field:
+                case None | '':
+                    return None
+                case 'no':
+                    return field
+                case str(x) if '; ' in x:
+                    return field.split('; ')
+                case _:
+                    samples:list[str] = read_tsv(
+                                                 tsv=task_path / field,
+                                                 one_col=True
+                                                ).get('samples', [])
+                    return samples
 
         try:
             db_query = str_to_dict(data['db_query'])
@@ -110,26 +130,19 @@ class Task(BaseModel):
             result_factory_str = (task_path / result_factory_rel).as_posix() + ':result_factory()'
             process_factory = load_callable(process_factory_str)
             # Формируем путь для nxf_cfg_params
-            nxf_cfg_params_rel:str = data['nxf_cfg_params']
-            nxf_cfg_params = task_path / nxf_cfg_params_rel
+            nxf_cfg_params_rel:str|None = data.get('nxf_cfg_params', None)
+            if nxf_cfg_params_rel:
+                nxf_cfg_params = task_path / nxf_cfg_params_rel
+            else:
+                nxf_cfg_params = Path('/dev/null')
+            task_load = data.get('load', {})
 
-            load = TaskLoad(**data['load'])
+            load = TaskLoad(**task_load)
 
-            applicable_samples = data.get('applicable_samples', None)
-            match applicable_samples:
-                case None:
-                    data['applicable_samples'] = []
-                case 'all_samples_applicable':
-                    pass
-                case _:
-                    if '; ' in applicable_samples:
-                        data['applicable_samples'] = applicable_samples.split('; ')
-                    else:
-                        data['applicable_samples'] = read_tsv(
-                                                            Path(applicable_samples).resolve(),
-                                                            one_col=True
-                                                            ).get('samples', [])
+            applicable_samples = __prepare_applicable_samples_field(data.get('applicable_samples', None))
+                        
             data.update({
+                         'applicable_samples':applicable_samples,
                          'db_query':db_query,
                          'process_factory':process_factory,
                          'result_factory':result_factory_str,
@@ -139,16 +152,17 @@ class Task(BaseModel):
 
             return Task(**data)
         except Exception:
-            logger.error("Ошибка при создании объекта Task. Source:\n%s", data)
+            logger = get_logger(__name__)
+            logger.exception("Ошибка при создании объекта Task. Source:\n%s", data)
             raise ValueError
 
     @classmethod
     def generate_task_yaml(
                            cls,
-                           tsv:Path|str
-                          ) -> None:
+                           data:dict
+                          ) -> dict:
         """
-        Автоматическая генерация шаблона задания на основе данных из TSV файла
+        Автоматическая генерация шаблона задания на основе словаря данных
         """
         def split_str_to_dict(s:str, mode:str='environment_variables') -> dict:
             res = {}
@@ -164,20 +178,18 @@ class Task(BaseModel):
                     case 'environment_variables':
                         pass
             return res
-            
-        if isinstance(tsv, str):
-            tsv = Path(tsv).resolve()
+
+        logger = get_logger(__name__)
         # Атрибуты, содержащие пути к файлам
         file_attrs = ['nxf_cfg_params', 'process_factory', 'result_factory']
         text_params_to_hash = ['cmd', 'environment_variables']
 
         # Читаем TSV/CSV, определяем разделитель
-        data = read_tsv(tsv)
         if not data:
-            raise ValueError(f"Файл не содержит данных: {tsv}")
+            raise ValueError("Переданы пустые данные.")
         items_count = len(data.get('name', []))
         
-        print("Found %d items in TSV", items_count)
+        logger.debug("Found %d items in TSV", items_count)
 
         try:
             ready_data = []
@@ -188,15 +200,15 @@ class Task(BaseModel):
                                  k: v for k, v in row.items()
                                  if k in text_params_to_hash
                                 }
-                print("Data fields for hashing: %s", data_for_hash.keys())
+                logger.debug("Data fields for hashing: %s", data_for_hash.keys())
                 
                 file_paths_to_hash:list[Path] = []
-                project_d = Path(__file__).parent.parent.parent.parent
+                project_d = Path(__file__).parents[2]
                 for attr in file_attrs:
                     rel_path:str = row[attr]
                     if '_factory' in attr:
                         rel_path = rel_path.split(':', 1)[0]
-                    file_paths_to_hash.append(project_d / rel_path)
+                    file_paths_to_hash.append(project_d / 'tasks' / rel_path)
                 # Чтение содержимого файлов
                 file_contents = []
                 for fp in file_paths_to_hash:
@@ -209,25 +221,26 @@ class Task(BaseModel):
                 hash_input = data_str + "\n" + "\n".join(file_contents)
                 version = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:4]
 
-                # Подготовка данных для создания объекта Task
-                if row['applicable_samples'] != 'all_samples_applicable':
-                    if row['applicable_samples'] is None:
-                        row['applicable_samples'] = 'all_samples_applicable'
-                    else:
-                        row['applicable_samples'] = Path(row['applicable_samples']).resolve().as_posix()
                 row.update({
                             'version':f"{date.today().strftime('%d%m%y')}{version}",
                             'priority': True if row['priority'].lower() == 'true' else False,
                             'load': split_str_to_dict(row['load'], mode='load'),
                             'environment_variables': split_str_to_dict(row['environment_variables'])
                            })
-                ready_data.append(row)
-            yaml_path = tsv.with_suffix(".yaml")
-            print("Generated task data for YAML:\n%s", ready_data)
-            save_yaml(filename=yaml_path, data={'tasks': ready_data})
+                # Проверяем валидность данных - пробуем создать объект Task
+                try:
+                    cls.from_source(data=row.copy())
+                except Exception as e:
+                    logger.exception("Non valid data for creating Task:\n%s", row)
+                    raise e
+                else:
+                    ready_data.append(row)
+            return {'tasks': ready_data}
+            
 
         except IndexError:
-            raise ValueError("TSV не содержит строк данных")
+            logger.exception("TSV не содержит строк данных")
+            raise
 
     @computed_field(description='ID задания')
     @property
@@ -255,4 +268,4 @@ class Task(BaseModel):
             len(processes), self.task_id, sample.sample_id
         )
         return processes
-     
+

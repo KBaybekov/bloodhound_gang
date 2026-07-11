@@ -1,0 +1,21 @@
+tasks:
+- name: 'basecalling_basic'
+  applicable_samples: 'no'
+  version: '110726d17c'
+  description: 'Базовый бейсколлинг, осуществляемый без модификаций'
+  db_query: '{ "$expr": { "$gt": [ { "$size": { "$setDifference": [ "$source.s_id",
+    "$res.s_id" ] } }, 0 ] } }'
+  cmd: 'nextflow -log {{ log_f }} run nxf-csp/ont-basecalling --input_dir {{ src_d
+    }} --outdir {{ res_d }} --sample {{ sample_id }} -c {{ nxf_cfg_params }} -c {{
+    nxf_cfg_institution }} -resume'
+  environment_variables: {}
+  queue: 'gpu'
+  load:
+    cpus: 32
+    ram: 128
+    gpus: 1
+  timeout: '1D'
+  priority: true
+  nxf_cfg_params: 'basecalling_basic/nxf_basecalling.config'
+  process_factory: 'basecalling_basic/process_factory.py'
+  result_factory: 'basecalling_basic/result_factory.py'

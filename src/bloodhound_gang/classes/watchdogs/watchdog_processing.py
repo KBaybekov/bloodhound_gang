@@ -240,16 +240,28 @@ class WatchdogProcessing(WatchdogBasic):
                 else:
                     query.update({'_id':{"$nin":do_not_load_samples}})
             
-            if task.applicable_samples:
-                docs = await self.dao.find(
-                                    collection=self.db_collection_samples,
-                                    query=query
-                                    )
-                if task.applicable_samples != 'all_samples_applicable':
-                    docs = [
-                            d for d in docs.copy()
-                            if d['sample_id'] in task.applicable_samples
-                           ]
+            match task.applicable_samples:
+                # поиск всех подходящих образцов
+                case None:
+                    docs = await self.dao.find(
+                                               collection=self.db_collection_samples,
+                                               query=query
+                                              )
+                # никакие образцы не подходят
+                case 'no':
+                    pass
+                # включаем только те образцы, что указаны для задания
+                case list():
+                    query_rule = {"$in":task.applicable_samples}
+                    if 'sample_id' in query.keys():
+                        query['sample_id'].update(query_rule)
+                    else:
+                        query.update({'sample_id':query_rule})
+                    docs = await self.dao.find(
+                                               collection=self.db_collection_samples,
+                                               query=query
+                                              )
+
             if docs:
                 # Из подходящих документов воссоздаём Samples и сохраняем их в отдельном словаре
                 self.task_ready_samples[task_id] = []
