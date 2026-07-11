@@ -394,6 +394,7 @@ class Process(BaseModel):
         """
         self.finish = datetime.now(tz=timezone.utc)
         if self.start is not None and self.finish is not None:
+            # TODO извлекать данные о длительности из репорта Nextflow
             self.duration = self.finish - self.start
         # PID у завершенного процесса быть не должно
         self.pid_f = None
@@ -600,35 +601,48 @@ class Process(BaseModel):
         """
         from modules.cli_executor_ssh import run_ssh_shell_detached
 
-        self.start = datetime.now(tz=timezone.utc)
-        # Создаём и валидируем nextflow_id
-        try:
-            if self.nextflow_id == 'UNDEFINED':
-                timestamp = self.start.strftime("%d_%m_%Y_%H_%M_%S")
-                self.nextflow_id = f"{self.task_id}-{self.sample_id}-{timestamp}"
-            validate_nextflow_run_name(self.nextflow_id)
-        except Exception:
-            self.start = None
-            self.nextflow_id = 'UNDEFINED'
-            logger.exception("Process '%s': Не удалось сформировать runName для запуска")
-            raise
-        
-        # Формируем команду (специфична для хоста и времени запуска)
-        try:
-            await self.form_cmd()
-        except Exception:
-            self.start = None
-            logger.exception("Process '%s': Не удалось сформировать команду для запуска")
-            raise
-                    
-        # Проверим, нет ли в папке процесса экзиткода - что будет значить, что он был выполнен ранее
-        await self.check_running()
-        if self.status not in PROCESS_STATUSES_FINISHED:
+        # Запуск процесса - впервые
+        if self.status == 'scheduled':
+            self.start = datetime.now(tz=timezone.utc)
+            # Создаём и валидируем nextflow_id
+            try:
+                if self.nextflow_id == 'UNDEFINED':
+                    timestamp = self.start.strftime("%d_%m_%Y_%H_%M_%S")
+                    self.nextflow_id = f"{self.task_id}-{self.sample_id}-{timestamp}"
+                validate_nextflow_run_name(self.nextflow_id)
+            except Exception:
+                self.start = None
+                self.nextflow_id = 'UNDEFINED'
+                logger.exception("Process '%s': Не удалось сформировать runName для запуска")
+                raise
+            
+            # Формируем команду (специфична для хоста и времени запуска)
+            try:
+                await self.form_cmd()
+            except Exception:
+                self.start = None
+                logger.exception("Process '%s': Не удалось сформировать команду для запуска")
+                raise
+                        
+            # Проверим, нет ли в папке процесса экзиткода - что будет значить, что он был выполнен ранее
+            await self.check_running()
+            if self.status in PROCESS_STATUSES_FINISHED:
+                return None
+            
             logger.debug("Process '%s': Launching process on host %s", self.process_id, self.host)
-            await run_ssh_shell_detached(process=self)
-            # Если процесс запущен неудачно - фиксируем время завершения
-            if self.status not in PROCESS_STATUSES_RUNNING:
-                self._set_finish()
+            # передаём переменные в окружение для дальнейшего использования
+            self.env.update({'NXF_RUN_NAME':self.nextflow_id})
+            self.env.update({'NXF_LOG_D':self.log_d.as_posix()})
+        # Запуск осуществлялся ранее
+        elif self.status == 'cancelled[system_interrupt]':
+            logger.info("Process '%s': перезапуск", self.process_id)
+            # удаляем ненужный exitcode и запускаем процесс
+            self.exitcode_f.unlink(missing_ok=True)
+
+        await run_ssh_shell_detached(process=self)
+        # Если процесс запущен неудачно - фиксируем время завершения
+        if self.status not in PROCESS_STATUSES_RUNNING:
+            self._set_finish()
         return None
 
     async def terminate(
