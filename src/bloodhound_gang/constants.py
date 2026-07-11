@@ -96,7 +96,7 @@ DB_CFG = {
 
 
 PROCESS_STATUSES_CREATED = {'created'}
-PROCESS_STATUSES_PLANNED = {'scheduled'}
+PROCESS_STATUSES_PLANNED = {'scheduled', 'cancelled[system_interrupt]'} # прерванные из-за системы процессы будут автоматически возобновлены
 PROCESS_STATUSES_RUNNING = {'running'}
 PROCESS_STATUSES_FINISH_OK = {'completed'}
 PROCESS_STATUSES_FINISH_FAIL = {
@@ -106,9 +106,8 @@ PROCESS_STATUSES_FINISH_FAIL = {
                                 'failed[bad_pidfile]',
                                 'failed[no_result]',
                                 'failed[result_factory_fail]',
-                                'timeout',
-                                'cancelled[by_user]',
-                                'cancelled[keyboard_interrupt]'
+                                'cancelled[timeout]',
+                                'cancelled[by_user]'
                                }
 PROCESS_STATUSES_FINISHED = PROCESS_STATUSES_FINISH_OK | PROCESS_STATUSES_FINISH_FAIL
 PROCESS_STATUSES_NOT_STARTED = PROCESS_STATUSES_CREATED | PROCESS_STATUSES_PLANNED

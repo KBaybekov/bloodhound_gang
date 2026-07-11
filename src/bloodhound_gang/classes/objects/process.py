@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Callable, Dict, TYPE_CHECKING
+from typing import Any, Callable, Dict, Literal, TYPE_CHECKING
 if TYPE_CHECKING:
     from classes.data.result_union import ResultUnion
     from classes.objects.sample import Sample
@@ -631,7 +631,10 @@ class Process(BaseModel):
                 self._set_finish()
         return None
 
-    async def terminate(self: Process) -> None:
+    async def terminate(
+                        self,
+                        reason:Literal['by_user', 'system_interrupt', 'timeout']
+                       ) -> None:
         """
         Завершает процесс по сохранённому PID (self.pid_f).
         Сначала посылает SIGTERM, ждёт до 15 секунд, затем SIGKILL.
@@ -647,6 +650,7 @@ class Process(BaseModel):
                     logger.debug("Process '%s': Terminating PID %d on host %s", self.process_id, pid, self.host)
                 except (ValueError, OSError):
                     logger.exception("Process '%s': Не удалось прочитать PID из %s", self.process_id, self.pid_f)
+                    self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
                     return
                     # Отправляем SIGTERM через ssh
                 try:
@@ -690,8 +694,10 @@ class Process(BaseModel):
                             logger.exception("Process '%s': Ошибка при отправке SIGKILL.", self.process_id)
                     else:
                         logger.debug("Process '%s': Процесс %d уже завершён.", self.process_id, pid)
+                        self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
                 else:
                     logger.debug("Process '%s': PID-файл исчез, процесс завершился.", self.process_id)
+                    self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
 
             except Exception:
                 logger.exception("Process '%s': Error during terminating subprocess.", self.process_id)
@@ -711,6 +717,5 @@ class Process(BaseModel):
                 "Timeout reached for process %s (%.1f sec > %d sec). Terminating.",
                 self.process_id, elapsed, self.timeout
             )
-            await self.terminate()
+            await self.terminate(reason='timeout')
             self._set_finish()
-            self.status = 'timeout'

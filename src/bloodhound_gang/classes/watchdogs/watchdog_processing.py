@@ -499,7 +499,8 @@ class WatchdogProcessing(WatchdogBasic):
     
     async def stop_processes(
         self,
-        process_ids: list
+        process_ids: list[str],
+        reason:Literal['by_user', 'keyboard_interrupt']
         ) -> None:
         """
         Останавливает все процессы, соответствующие заданным критериям.
@@ -511,7 +512,10 @@ class WatchdogProcessing(WatchdogBasic):
 
         for proc_id in process_ids:
             proc = self.processes[proc_id]
-            await self.stop_one_process(process=proc)
+            await self.stop_one_process(
+                                        process=proc,
+                                        reason='by_user'
+                                       )
             if proc.status not in PROCESS_STATUSES_RUNNING:
                 stopped.append(proc_id)
         if stopped:
@@ -529,7 +533,8 @@ class WatchdogProcessing(WatchdogBasic):
     async def stop_one_process(
                                self,
                                process:Process|None,
-                               process_id:str ='',
+                               reason:Literal['by_user', 'system_interrupt'],
+                               process_id:str =''
                               ) -> None:
         """
         Останавливает один процесс.
@@ -538,7 +543,7 @@ class WatchdogProcessing(WatchdogBasic):
             process = self.processes[process_id]
         self.logger.info("'Process %s': Остановка по внешней команде", process.process_id)
         try:
-            await process.terminate()
+            await process.terminate(reason=reason)
 
             # Освобождаем ресурсы
             if process.host is not None:
@@ -827,7 +832,10 @@ class WatchdogProcessing(WatchdogBasic):
                                                                               )
                                     if stop_these_processes:
                                         self.logger.debug("Stopping processes by user command: %s", ', '.join(stop_these_processes))
-                                        await self.stop_processes(stop_these_processes)
+                                        await self.stop_processes(
+                                                                  stop_these_processes,
+                                                                  reason='by_user'
+                                                                 )
                     self.logger.debug('All commands processed.')
             return None
 
@@ -851,7 +859,7 @@ class WatchdogProcessing(WatchdogBasic):
         self.stop_event.set()
         for proc in self.processes.values():
             if proc.pid_f is not None:
-                await self.stop_one_process(process=proc)
+                await self.stop_one_process(process=proc, reason='system_interrupt')
  
     async def cleanup(self):
         """Финальное сохранение изменений процессов и образцов перед остановкой."""
