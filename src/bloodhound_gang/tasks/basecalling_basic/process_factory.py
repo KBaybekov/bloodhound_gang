@@ -48,14 +48,11 @@ def process_factory(
                                            task=task,
                                            weight=weight
                                           )
-            # Заполняем env & cmd_vars процесса
-            process.cmd_vars.update({
-                                     'log_f': process.log_f.as_posix(),
-                                     'src_d': source.path.as_posix(),
-                                     'res_d': process.res_d.as_posix(),
-                                     'sample_id': process.sample_id,
-                                     'nxf_cfg_params': task.nxf_cfg_params.as_posix(),
-                                     'nxf_cfg_institution': task.nxf_cfg_institution.as_posix()
-                                    })
+            # Заполняем env & pipeline_vars процесса
+            process.pipeline_vars.update({
+                                          'input_dir': source.path.as_posix(),
+                                          'outdir': process.res_d.as_posix(),
+                                          'sample': process.sample_id
+                                         })
             processes.update({process_id:process})
     return processes

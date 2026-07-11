@@ -15,7 +15,13 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator,
 
 
 from classes.objects.taskload import TaskLoad
-from constants import PROCESS_STATUSES, PROCESS_STATUSES_RUNNING, PROCESS_STATUSES_FINISHED
+from constants import (
+                       PROCESS_STATUSES,
+                       PROCESS_STATUSES_RUNNING,
+                       PROCESS_STATUSES_FINISHED,
+                       NEXTFLOW_CMD_VARIABLES,
+                       NEXTFLOW_TEMPLATE
+                      )
 from modules.utils import (
                            dehumanize_timedelta,
                            dehumanize_timedelta_to_seconds,
@@ -25,13 +31,14 @@ from modules.utils import (
                            objects_in_dir,
                            load_callable,
                            load_yaml,
-                           render_text
+                           render_text,
+                           generate_params_file,
+                           copy_file_async,
+                           validate_nextflow_run_name
                           )
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
-
-# TODO Прописать логику для draft заданий
 
 class Process(BaseModel):
     """
@@ -74,6 +81,12 @@ class Process(BaseModel):
                          min_length=2,
                          frozen=True
                         )
+    nextflow_id: str = Field(
+                             default='UNDEFINED',
+                             description='Идентификатор запуска Nextflow',
+                             min_length=2,
+                             max_length=80
+                            )
     tags: list[str] = Field(
                            default=[],
                            description="Список дополнительных идентификаторов процесса",
@@ -88,10 +101,26 @@ class Process(BaseModel):
                            default=None,
                            description="машина, на которой выполняется процесс"
                           )
-    cmd_vars: Dict[str, str|None] = Field(
-                                     default_factory=dict,
-                                     description="Переменные shell-команды"
+    pipeline_vars: Dict[str, str|None] = Field(
+                                     default={},
+                                     description="Переменные пайплайна"
                                     )
+    params_f: Path = Field(
+                           default=Path('/dev/null'),
+                           description="Параметры Nextflow",
+                          )
+    nxf_cfg_pipeline_f: Path|None = Field(
+                                          default=None,
+                                          description="Конфиг Nextflow, специфичный для пайплайна",
+                                         )
+    nxf_cfg_organisation_f: Path|None = Field(
+                                              default=None,
+                                              description="Конфиг Nextflow, специфичный для организации",
+                                             )
+    pipeline: str = Field(
+                          default='UNDEFINED',
+                          description="Пайплайн Nextflow"
+                         )
     shell_command: str = Field(
                                default='UNDEFINED',
                                description="Команда для запуска"
@@ -217,13 +246,9 @@ class Process(BaseModel):
                                 description="Таймлайн Nextflow",
                                )
     dag_f: Path|None = Field(
-                                default=None,
-                                description="DAG Nextflow"
+                             default=None,
+                             description="DAG Nextflow"
                             )
-    params_f: Path|None = Field(
-                                default=None,
-                                description="Параметры Nextflow",
-                               )
     software_list_f: Path|None = Field(
                                 default=None,
                                 description="Список софта Nextflow",
@@ -264,17 +289,16 @@ class Process(BaseModel):
         # process_id parsing
         task_id, task_name, task_version, sample_id, tags = decode_process_id(process_id)
         
-        cmd_vars = task.cmd_vars 
-        cmd_vars.update({'nxf_cfg_institution':task.nxf_cfg_institution.as_posix()})
-
         process_data.update({
                              'res_d': sample.res_d.joinpath(task_name, *tags, task_version),
                              'work_d': sample.work_d.joinpath(task_name, *tags, task_version),
                              'priority': any([sample.priority, task.priority]),
                              'env': task.environment_variables,
                              'queue': task.queue,
+                             'pipeline': task.pipeline,
+                             'nxf_cfg_organisation_f':task.nxf_cfg_organisation,
+                             'nxf_cfg_pipeline_f':task.nxf_cfg_pipeline,
                              'result_factory': task.result_factory,
-                             'shell_command': task.cmd,
                              'timeout': dehumanize_timedelta_to_seconds(task.timeout)
                             })
 
@@ -285,7 +309,6 @@ class Process(BaseModel):
                        tags=tags,
                        task_id=task_id,
                        weight=weight,
-                       cmd_vars=cmd_vars,
                        **process_data
                       )
     
@@ -333,7 +356,7 @@ class Process(BaseModel):
 
     @model_validator(mode='after')
     def set_log_objs(self) -> 'Process':
-        self.log_d = self.res_d / 'logs'
+        self.log_d = self.work_d / 'logs'
         self.log_f = self.log_d / f'{self.task_id}_nextflow.log'
         return self
 
@@ -417,12 +440,6 @@ class Process(BaseModel):
                                                   ['trace' in f.stem,
                                                    f.suffix in ['.tsv', '.csv']])),
                                           None)
-                        self.params_f = next(
-                                          (f for f in log_files
-                                           if all(
-                                                  ['params' in f.stem,
-                                                   f.suffix == '.json'])),
-                                          None)
                         self.report_f = next(
                                           (f for f in log_files
                                            if all(
@@ -496,52 +513,84 @@ class Process(BaseModel):
         finally:
             return None
     
-    def form_cmd(
+    async def form_cmd(
                  self
                 ) -> None:
         """
-        Формирует shell-команду на основе шаблона и переменных cmd_vars.
+        Формирует shell-команду на основе шаблона и переменных pipeline_vars.
         Все значения автоматически экранируются для безопасной вставки в shell,
         что защищает от некорректных имён файлов и спецсимволов.
         """
         # Экранируем все значения, которые не являются простыми числами или булевыми литералами
         safe_pattern = re.compile(r'^(true|false|\d+(\.\d+)?)$', re.IGNORECASE)
         sanitized = {}
-        for k, v in self.cmd_vars.items():
+        
+        # создаём копию команды Nextflow и работаем с ней
+        nxf_cmd = NEXTFLOW_TEMPLATE[:]
+        nxf_cmd = ' '.join(nxf_cmd.split())
+        cmd_vars = NEXTFLOW_CMD_VARIABLES.copy()
+        # Подготавливаем конфиги - копируем конфиги из шаблона в рабочую папку процесса
+        try:
+            self.work_d.mkdir(parents=True, exist_ok=True)
+            self.log_d.mkdir(parents=True, exist_ok=True)
+            if self.nxf_cfg_organisation_f:
+                self.nxf_cfg_organisation_f = await copy_file_async(
+                                                                    src_file=self.nxf_cfg_organisation_f,
+                                                                    dest_d=self.log_d
+                                                                   )
+                cmd_vars.update({'nxf_cfg_organisation':self.nxf_cfg_organisation_f.as_posix()})
+            else:
+                nxf_cmd.replace(' -c {{ nxf_cfg_organisation }}', '', 1)
+                del cmd_vars['nxf_cfg_organisation']
+
+            if self.nxf_cfg_pipeline_f:
+                self.nxf_cfg_pipeline_f = await copy_file_async(
+                                                                src_file=self.nxf_cfg_pipeline_f,
+                                                                dest_d=self.log_d
+                                                               )
+                cmd_vars.update({'nxf_cfg_pipeline_f':self.nxf_cfg_pipeline_f.as_posix()})
+            else:
+                nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
+                del cmd_vars['nxf_cfg_pipeline']
+        except Exception:
+            logger.exception("Process '%s': Не удалось создать файлы конфигурации в рабочей папке процесса.", self.process_id)
+            raise
+
+        # Подготавливаем файл с параметрами запуска пайплайна
+        try:
+            if self.pipeline_vars and self.start:
+                self.params_f = self.log_d / f'{self.process_id}_{self.start.strftime("%d_%m_%Y_%H_%M_%S")}-params.yaml'
+                await generate_params_file(
+                                           params=self.pipeline_vars,
+                                           output_path=self.params_f
+                                          )
+                cmd_vars.update({'params_f':self.params_f.as_posix()})
+            else:
+                raise ValueError(f"Process {self.process_id}: Пустой словарь параметров запуска пайплайна:\n{self.pipeline_vars}")
+        except Exception:
+            logger.exception("Process '%s': Не удалось создать файл параметров в рабочей папке процесса.", self.process_id)
+            raise
+
+        cmd_vars.update({
+                         'log_f':self.log_f.as_posix(),
+                         'pipeline':self.pipeline,
+                         'nextflow_id':self.nextflow_id
+                        })
+        for k, v in cmd_vars.items():
             if v is None:
-                raise ValueError(f"Process '{self.process_id}'. CMD_VARS: Value is undefined for {k}")
+                raise ValueError(f"Process '{self.process_id}'. PIPELINE_VARS: Value is undefined for {k}")
             v_str = str(v)
             if not safe_pattern.match(v_str):
                 sanitized[k] = shlex.quote(v_str)
             else:
                 sanitized[k] = v_str
         self.shell_command = render_text(
-            template=self.shell_command,
-            data=sanitized,
-            strict=True
-        )
-        logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
-        return None
-    
-    '''
-    def form_cmd(self):
-        """
-        Формирует shell-команду на основе шаблона команды и переменных cmd_vars.
-        При отсутствии какой-либо из переменных - выбрасывает ошибку.
-
-        :raise ValueError: Если какая-то из переменных в cmd_vars - None.
-        """
-        for k,v in self.cmd_vars.items():
-            if v is None:
-                err_msg = f"Process '{self.process_id}'. CMD_VARS: Value is undefined for {k}"
-                logger.critical(err_msg, exc_info=True)
-                raise ValueError(err_msg)
-        self.shell_command = render_text(
-                                         template=self.shell_command,
-                                         data=self.cmd_vars,
+                                         template=nxf_cmd,
+                                         data=sanitized,
                                          strict=True
                                         )
-    '''
+        logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
+        return None
     
     async def run(
             self
@@ -551,7 +600,27 @@ class Process(BaseModel):
         """
         from modules.cli_executor_ssh import run_ssh_shell_detached
 
-        self.start =  datetime.now(tz=timezone.utc)
+        self.start = datetime.now(tz=timezone.utc)
+        # Создаём и валидируем nextflow_id
+        try:
+            if self.nextflow_id == 'UNDEFINED':
+                timestamp = self.start.strftime("%d_%m_%Y_%H_%M_%S")
+                self.nextflow_id = f"{self.task_id}-{self.sample_id}-{timestamp}"
+            validate_nextflow_run_name(self.nextflow_id)
+        except Exception:
+            self.start = None
+            self.nextflow_id = 'UNDEFINED'
+            logger.exception("Process '%s': Не удалось сформировать runName для запуска")
+            raise
+        
+        # Формируем команду (специфична для хоста и времени запуска)
+        try:
+            await self.form_cmd()
+        except Exception:
+            self.start = None
+            logger.exception("Process '%s': Не удалось сформировать команду для запуска")
+            raise
+                    
         # Проверим, нет ли в папке процесса экзиткода - что будет значить, что он был выполнен ранее
         await self.check_running()
         if self.status not in PROCESS_STATUSES_FINISHED:

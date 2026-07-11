@@ -164,7 +164,7 @@ class WatchdogProcessing(WatchdogBasic):
         # CONFIGS
         local_configs = CONFIGS.copy()
         # Конфиг Nextflow с надстройками организации (передаётся в задания)
-        self._nxf_cfg_institution = local_configs.pop('nxf_cfg_institution')
+        self._nxf_cfg_organisation = local_configs.pop('nxf_cfg_organisation')
         # Загружаемые конфиги (атрибут:YAML)
         self.cfgs: Dict[str, Path] = local_configs
 
@@ -212,7 +212,7 @@ class WatchdogProcessing(WatchdogBasic):
             for task_data in task_list:
                 try:
                     # Закидываем конфиг Nextflow, общий для всех заданий
-                    task_data.update({'_nxf_cfg_institution':self._nxf_cfg_institution})
+                    task_data.update({'_nxf_cfg_organisation':self._nxf_cfg_organisation})
                     task = Task.from_source(task_data)
                 except ValueError:
                     # эту ошибку обработали в task.py
@@ -455,14 +455,19 @@ class WatchdogProcessing(WatchdogBasic):
             for proc_id in processes_for_start:
                 proc = self.processes.get(proc_id, None)
                 if proc is not None:
-                    # Формируем команды и запускаем процесс
-                    proc.form_cmd()
+                    # Запускаем процесс
                     proc.host = self.define_process_host(proc)
                     if proc.host is not None:
-                        await proc.run()
+                        try:
+                            await proc.run()
+                        except Exception:
+                            self.logger.exception("Не удалось запустить процесс %s", proc_id)
+                            continue
                         if proc.status in PROCESS_STATUSES_RUNNING:
                             self.running_processes.update({proc.process_id: proc})
                             self.logger.debug("Process '%s' started on host '%s'", proc.process_id, proc.host)
+                            # Не будем перегружать систему одновременными вызовами + будут разные process.start
+                            await asyncio.sleep(1)
                         sample = await self.get_sample(proc.sample_db_id)
                         if sample is not None:
                             sample.store_process_status(proc)

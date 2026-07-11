@@ -1,4 +1,5 @@
 import os
+import jinja2
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -12,6 +13,21 @@ def request_env_variable(
     """
     load_dotenv()
     return os.environ[variable_name]
+
+
+def parse_str_for_variables_names(
+                                  template:str
+                                 ) -> set[str]:
+    """
+    Возвращает множество имён переменных в шаблоне
+    """
+    from jinja2 import meta
+
+    env = jinja2.Environment()
+    parsed_template = env.parse(template)
+    str_variables = meta.find_undeclared_variables(parsed_template)
+    return str_variables
+
 
 PROJECT_NAME = 'ont_processor_v2'
 
@@ -91,7 +107,8 @@ PROCESS_STATUSES_FINISH_FAIL = {
                                 'failed[no_result]',
                                 'failed[result_factory_fail]',
                                 'timeout',
-                                'cancelled'
+                                'cancelled[by_user]',
+                                'cancelled[keyboard_interrupt]'
                                }
 PROCESS_STATUSES_FINISHED = PROCESS_STATUSES_FINISH_OK | PROCESS_STATUSES_FINISH_FAIL
 PROCESS_STATUSES_NOT_STARTED = PROCESS_STATUSES_CREATED | PROCESS_STATUSES_PLANNED
@@ -112,7 +129,7 @@ CONFIGS = {
            'hosts':CFG_D / "hosts.yaml",
            'queues':CFG_D / "queues.yaml",
            'user_commands':CFG_D / "user_commands.yaml",
-           'nxf_cfg_institution':CFG_D / "nextflow/nxf_csp.config"
+           'nxf_cfg_organisation':CFG_D / "nextflow/nxf_csp.config"
           }
 
 
@@ -125,3 +142,19 @@ LOG_BACKUP_COUNT = 3
 
 HTTP_METRICS = os.environ['HTTP_METRICS']
 HTTP_METRICS_PORT = int(os.environ['HTTP_METRICS_PORT'])
+
+# Nextflow
+NEXTFLOW_TEMPLATE = """
+                        nextflow \
+                        -log {{ log_f }} \
+                        run {{ pipeline }} \
+                        -name {{ nextflow_id }} \
+                        -params-file {{ params_file }} \
+                        -c {{ nxf_cfg_organisation }} \
+                        -c {{ nxf_cfg_pipeline }}
+                        -resume
+                    """
+NEXTFLOW_CMD_VARIABLES:dict[str, str|None] = {
+                                              k:None for k in
+                                              parse_str_for_variables_names(NEXTFLOW_TEMPLATE)
+                                             }

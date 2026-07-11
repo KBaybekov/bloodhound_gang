@@ -108,9 +108,10 @@ class Sample(BaseModel):
                             alias='_id'
                            )
     sample_id: str = Field(
-                           default='',
+                           default='UNDEFINED',
                            description="Идентификатор образца",
-                           max_length=60,
+                           min_length=1,
+                           max_length=35, #Nextflow runName limitations
                            frozen=True
                           )
 

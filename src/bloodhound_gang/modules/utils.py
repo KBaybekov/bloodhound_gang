@@ -1,7 +1,10 @@
+import asyncio
 import csv
 import jinja2
 import humanize
 import json
+import re
+import shutil
 import yaml
 from datetime import timedelta
 from importlib.util import module_from_spec, spec_from_file_location
@@ -199,10 +202,7 @@ def save_yaml(filename:Path, data:dict) -> Path:
             sort_keys=False,
             allow_unicode=True
         )
-    
-    # Записываем данные в YAML-файл
-    #with open(filename, 'w') as yaml_file:
-    #    yaml.dump(data, yaml_file, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
     return filename
 
 def file_mtime_changed(
@@ -277,19 +277,6 @@ def decode_process_id(
         err_msg = f"Пустой process_id: {process_id}"
         logger.error(err_msg)
         raise ValueError(err_msg)
-
-def parse_str_for_variables_names(
-                                  template:str
-                                 ) -> set[str]:
-    """
-    Возвращает множество имён переменных в шаблоне
-    """
-    from jinja2 import meta
-
-    env = jinja2.Environment()
-    parsed_template = env.parse(template)
-    str_variables = meta.find_undeclared_variables(parsed_template)
-    return str_variables
 
 def render_text(
                 template:str,
@@ -570,4 +557,123 @@ async def check_important_file_objs(
                         err_msg = f"{obj_type.upper()}: Object doesn't exist, not file OR not readable: {obj.as_posix()}"
                         logger.critical(err_msg, exc_info=True)
                         raise OSError(err_msg)
+    return None
+
+async def generate_params_file(
+                         params:dict,
+                         output_path: Path,
+                        ) -> None:
+    """
+    Формирует Nextflow params-file (YAML).
+
+    :type params: dict
+    :param output_path: Путь выходного файла
+    :type output_path: Path
+    :rtype: None
+    :raise ValueError: Если отсутствуют какие-либо параметры пайплайна
+    """
+    # Валидация параметров
+    try:
+        if not params or any([v is None for v in params.values()]):
+            raise ValueError
+    except ValueError:
+        logger.exception("Отсутствуют обязательные параметры для пайплайна. Данные:\n%r", params)
+        raise
+
+    # Генерация YAML
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(save_yaml, output_path, params)
+
+    return None
+
+async def copy_file_async(
+                          src_file:Path,
+                          dest_d:Path,
+                          follow_symlinks: bool = True
+                         ) -> Path:
+    try:
+        new_path = await asyncio.to_thread(shutil.copyfile, src_file, dest_d, follow_symlinks=follow_symlinks)
+    except shutil.SameFileError:
+        logger.exception("Error: Source and destination are the exact same file.")
+        raise
+
+    except FileNotFoundError:
+        logger.exception("Error: The source file could not be found.")
+        raise
+
+    except IsADirectoryError:
+        logger.exception("Error: The destination must include the file name, not just a directory.")
+        raise
+
+    except PermissionError:
+        logger.exception("Error: Permission denied. Check file locks or access rights.")
+        raise
+
+    except shutil.SpecialFileError:
+        logger.exception("Error: Cannot copy system pipes, sockets, or special files.")
+        raise
+
+    except OSError as e:
+        logger.exception(f"System error occurred: {e}")
+        raise
+    return new_path
+
+def validate_nextflow_run_name(name: str) -> None:
+    """
+    Валидирует имя запуска либо выбрасывает ValueError
+    с описанием проблемы.
+
+    Parameters
+    ----------
+    name : str
+        Предполагаемое имя запуска.
+
+    Raises
+    ------
+    ValueError
+        Если имя не соответствует требованиям Nextflow.
+    """
+    pattern = re.compile(r"^[a-z](?:[a-z\d]|[-_](?=[a-z\d])){0,79}$")
+
+    if not isinstance(name, str) or not name:
+        raise ValueError("Имя запуска не может быть пустым.")
+
+    if len(name) > 80:
+        raise ValueError(
+            f"Имя запуска слишком длинное ({len(name)} символов, максимум 80)."
+        )
+
+    if not name[0].isalpha() or not name[0].islower():
+        raise ValueError(
+            f"Имя запуска должно начинаться со строчной латинской буквы, "
+            f"получено: '{name[0]}'."
+        )
+
+    if not pattern.match(name):
+        # Дадим более точную диагностику
+        invalid_chars = set(re.findall(r"[^a-z\d\-_]", name))
+        if invalid_chars:
+            raise ValueError(
+                f"Имя запуска содержит недопустимые символы: {invalid_chars}. "
+                f"Допустимы только строчные латинские буквы, цифры, дефисы и подчёркивания."
+            )
+
+        # Проверка на trailing/consecutive separators
+        if name[-1] in "-_":
+            raise ValueError(
+                "Имя запуска не может заканчиваться дефисом или подчёркиванием."
+            )
+
+        consecutive = re.search(r"[-_]{2,}", name)
+        if consecutive:
+            raise ValueError(
+                f"Имя запуска не может содержать подряд идущие разделители: "
+                f"'{consecutive.group()}' на позиции {consecutive.start()}."
+            )
+
+        raise ValueError(
+            f"Имя запуска '{name}' не соответствует формату Nextflow. "
+            f"Паттерн: ^[a-z](?:[a-z\\d]|[-_](?=[a-z\\d])){{0,79}}$"
+        )
+
     return None

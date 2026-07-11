@@ -11,7 +11,7 @@ from classes.objects.process import Process
 from classes.objects.sample import Sample
 from classes.objects.taskload import TaskLoad
 from constants import DELIMITER
-from modules.utils import load_callable, parse_str_for_variables_names, str_to_dict, read_tsv, save_yaml
+from modules.utils import load_callable, str_to_dict, read_tsv
 from modules.logger import get_logger
 
 
@@ -27,20 +27,21 @@ class Task(BaseModel):
                               validate_assignment=True
                              )
     name: str = Field(
-                      default='UNDEFINED',
+                      ...,
                       description="Название задания",
-                      examples=["basecalling"]
+                      examples=["basecalling"],
+                      max_length=18
                      )
     version: str = Field(
-                         default='UNDEFINED',
+                         ...,
                          description="Версия задания (Дата ДДММГГ и последние 4 знака хэша словаря)",
-                         min_length=10,
+                         min_length=3,
                          max_length=10
                         )
-    nxf_cfg_institution: Path = Field(
-                                      default=Path('/dev/null'),
-                                      description="Конфиг Nextflow с надстройками организации"
-                                     )
+    nxf_cfg_organisation: Path|None = Field(
+                                            default=None,
+                                            description="Конфиг Nextflow с надстройками организации"
+                                           )
     applicable_samples: list[str]|Literal['no']|None = Field(
                                             default=None,
                                             description="""ID образцов, подходящих для задания.
@@ -55,10 +56,11 @@ class Task(BaseModel):
                                      default_factory=dict,
                                      description="Запрос в БД для получения выборки образцов, подходящих для задания"
                                     )
-    cmd: str = Field(
-                     default='UNDEFINED',
-                     description="Шаблон shell-команды"
-                    )
+    pipeline: str = Field(
+                          default='UNDEFINED',
+                          description="Nextflow пайплайн",
+                          min_length=3
+                         )
     environment_variables: Dict[str, str] = Field(
                                                   default_factory=dict,
                                                   description="Словарь переменных окружения"
@@ -80,14 +82,18 @@ class Task(BaseModel):
                            default=False,
                            description="Флаг, указывающий на то, что процессы этого должны быть выполнены в приоритетном порядке"
                           )
-    nxf_cfg_params: Path = Field(
-                                 default=Path('/dev/null'),
-                                 description="Конфиг Nextflow с параметрами пайплайна"
-                                ) 
+    nxf_cfg_pipeline: Path|None = Field(
+                                        default=None,
+                                        description="Конфиг Nextflow с параметрами пайплайна"
+                                       ) 
     process_factory: Callable[['Task', Sample], Dict[str, Process]] = Field(
+                                                                            ...,
                                                                             description="Функция генерации объектов Process"
                                                                            )
-    result_factory: str = Field(description="Путь к функции парсинга результатов обработки данных")
+    result_factory: str = Field(
+                                ...,
+                                description="Путь к функции парсинга результатов обработки данных"
+                               )
     
     @classmethod
     def from_source(
@@ -129,12 +135,12 @@ class Task(BaseModel):
             result_factory_rel:str = data['result_factory']
             result_factory_str = (task_path / result_factory_rel).as_posix() + ':result_factory()'
             process_factory = load_callable(process_factory_str)
-            # Формируем путь для nxf_cfg_params
-            nxf_cfg_params_rel:str|None = data.get('nxf_cfg_params', None)
-            if nxf_cfg_params_rel:
-                nxf_cfg_params = task_path / nxf_cfg_params_rel
+            # Формируем путь для nxf_cfg_pipeline
+            nxf_cfg_pipeline_rel:str|None = data.get('nxf_cfg_pipeline', None)
+            if nxf_cfg_pipeline_rel:
+                nxf_cfg_pipeline = task_path / nxf_cfg_pipeline_rel
             else:
-                nxf_cfg_params = Path('/dev/null')
+                nxf_cfg_pipeline = Path('/dev/null')
             task_load = data.get('load', {})
 
             load = TaskLoad(**task_load)
@@ -146,7 +152,7 @@ class Task(BaseModel):
                          'db_query':db_query,
                          'process_factory':process_factory,
                          'result_factory':result_factory_str,
-                         'nxf_cfg_params': nxf_cfg_params,
+                         'nxf_cfg_pipeline': nxf_cfg_pipeline,
                          'load': load
                         })
 
@@ -181,8 +187,8 @@ class Task(BaseModel):
 
         logger = get_logger(__name__)
         # Атрибуты, содержащие пути к файлам
-        file_attrs = ['nxf_cfg_params', 'process_factory', 'result_factory']
-        text_params_to_hash = ['cmd', 'environment_variables']
+        file_attrs = ['nxf_cfg_pipeline', 'process_factory', 'result_factory']
+        text_params_to_hash = ['pipeline', 'environment_variables']
 
         # Читаем TSV/CSV, определяем разделитель
         if not data:
@@ -245,13 +251,15 @@ class Task(BaseModel):
     @computed_field(description='ID задания')
     @property
     def task_id(self) -> str:
-        return f"{DELIMITER.join([self.name, self.version])}"
-    
-    @computed_field(description='Переменные shell-команды')
-    @property
-    def cmd_vars(self) -> Dict[str, str|None]:
-        var_names = parse_str_for_variables_names(self.cmd)
-        return {var:None for var in var_names}
+        """
+        Возвращает task_id длиной не больше разрешённого (подрезает строку версии с конца.)
+        """
+        # определена по максимальной длине Nextflow runName
+        max_length = 22
+        task_id = f"{DELIMITER.join([self.name, self.version])}"
+        if len(task_id) > max_length:
+            task_id = task_id[:max_length]
+        return f"{DELIMITER.join([self.name, self.version[-4:]])}"
 
     def create_sample_processes(
                                 self,
