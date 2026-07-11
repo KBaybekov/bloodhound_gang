@@ -5,3 +5,4 @@ commands: #
     hosts: # хосты
     queues: # очереди
     task_ids: # id заданий
+    sample_id: # id образцов

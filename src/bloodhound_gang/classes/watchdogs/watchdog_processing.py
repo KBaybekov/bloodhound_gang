@@ -805,7 +805,8 @@ class WatchdogProcessing(WatchdogBasic):
                                                 'process_id': command.get('process_id', None),
                                                 'host': command.get('host', None),
                                                 'queue': command.get('queue', None),
-                                                'task_id': command.get('task_id', None)
+                                                'task_id': command.get('task_id', None),
+                                                'sample_id': command.get('sample_id', None)
                                                 }
                             for prop_name, prop in command_prorepties.items():
                                 if prop is not None:
