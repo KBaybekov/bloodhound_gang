@@ -282,8 +282,8 @@ class Sample(BaseModel):
         """
         Сериализует экземпляр Sample в документ для загрузки в БД.
         """
-        doc = self.model_dump(mode='json')
-        #doc['_id'] = self.db_id
+        doc = self.model_dump(mode='json', exclude={'db_id'})
+        doc['_id'] = self.db_id
         return doc
 
     @field_validator('source_d')
