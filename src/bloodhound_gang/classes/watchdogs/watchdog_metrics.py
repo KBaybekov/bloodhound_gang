@@ -105,12 +105,12 @@ class WatchdogMetrics(WatchdogBasic):
             await self.runner.setup()
             site = web.TCPSite(self.runner, self.ip, self.ip_port)
             await site.start()
-            self.logger.info(
+            self.logger.debug(
                 "Метрики доступны на http://%s:%s/metrics",
                 self.ip, self.ip_port
             )
         except Exception:
-            logger.error("Ошибка при запуске сервера")
+            logger.error("Ошибка при запуске сервера метрик")
 
     async def watch(self) -> None:
         await self._gather_metrics_dao()
