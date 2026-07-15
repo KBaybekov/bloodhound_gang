@@ -33,7 +33,7 @@ class WatchdogSource(WatchdogBasic):
         name: str,
         stop_event: asyncio.Event,
         dao:ConfigurableMongoDAO,                       # объект доступа к данным (MongoDB)
-        max_depth: int = 4,             # глубина рекурсии: 0-group,1-subgroup,2-sample,3-batch
+        max_depth: int = 3,             # глубина рекурсии: 0-group,1-subgroup,2-sample,3-batch
         **kwargs
     ):
         super().__init__(
@@ -172,7 +172,7 @@ class WatchdogSource(WatchdogBasic):
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
                     # Если мы на уровне батча - читаем размеры файлов
                     case self.batch_depth:
-                        #self.logger.debug("%s in a batch, we'll just add it and its size", item_path.as_posix())
+                        self.logger.debug("%s in a batch, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
                                                 item_path.name:obj_size_in_Gb(
                                                                               obj=item_path,
