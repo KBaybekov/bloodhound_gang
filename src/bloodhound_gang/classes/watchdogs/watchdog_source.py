@@ -57,6 +57,7 @@ class WatchdogSource(WatchdogBasic):
         self.sample_depth = max_depth - 1
 
         # метрики
+        self.samples_in_filesystem_found = 0
         self.samples_count:int = 0
 
     # ------------------------------------------------------------------
@@ -128,6 +129,7 @@ class WatchdogSource(WatchdogBasic):
                                                 current_depth=-1
                                                 )
                 }
+        self.logger.debug('Found %d objects on sample depth', self.samples_in_filesystem_found)
         if old_tree is None:
             # Первый запуск – создаём образцы для всех sample и сохраняем дерево
             self._process_initial_tree(tree=new_tree.get('tree', {}), path_parts=[])
@@ -183,6 +185,8 @@ class WatchdogSource(WatchdogBasic):
                     case _:
                         if item_path.is_dir():
                             self.logger.debug("Adding to tree: %s", item_path.as_posix())
+                            if current_depth == (self.sample_depth - 1):
+                                self.samples_in_filesystem_found += 1
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
 
         except OSError:
