@@ -623,7 +623,7 @@ class ConfigurableMongoDAO:
             requests.append(UpdateOne(
                                       filter={"_id": doc['_id']},
                                       update={
-                                                '$set':{k:v for k,v in doc.items() if k!='_id'},
+                                                '$set':{k:v for k,v in doc.items() if k not in ('_id', 'created_at_DB')},
                                                 '$setOnInsert': {"created_at_DB" : now}
                                                },
                                       upsert=True

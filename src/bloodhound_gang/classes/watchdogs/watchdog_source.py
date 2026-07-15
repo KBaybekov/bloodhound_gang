@@ -366,7 +366,7 @@ class WatchdogSource(WatchdogBasic):
                                                 }
                                         )
             self.samples_to_DB.append(sample.to_db())
-            self.logger.debug("New sample (%s) detected, path: %s", sample.sample_id, sample_path.as_posix())
+            self.logger.debug("New Sample (%s) created, path: %s", sample.sample_id, sample_path.as_posix())
         except Exception:
             self.logger.exception("Failed to create sample for %s", sample_path.as_posix())
 
