@@ -159,7 +159,6 @@ class WatchdogSource(WatchdogBasic):
         (для глубины == batch_depth).
         """
         result = {path.name:{}}
-        #scan = {}
 
         try:
             self.logger.debug("Current dir: %s", path.as_posix())
@@ -176,7 +175,6 @@ class WatchdogSource(WatchdogBasic):
                                 continue
                             self.logger.debug("Adding to tree: %s", item_path.as_posix())
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
-                            #scan.update(self._scan_directory(item_path, current_depth + 1))
                     # Если мы на уровне батча - читаем размеры файлов
                     case self.max_depth:
                         self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
@@ -186,32 +184,21 @@ class WatchdogSource(WatchdogBasic):
                                                                               precision=6
                                                                              )
                                                 })
-                        '''
-                        scan.update({
-                                     item_path.name:obj_size_in_Gb(
-                                                                   obj=item_path,
-                                                                   precision=6
-                                                                  )
-                                    })
-                        '''
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
                         if item_path.is_dir():
                             self.logger.debug("Adding to tree: %s", item_path.as_posix())
                             if current_depth == (self.sample_depth - 1):
                                 self.samples_in_filesystem_found += 1
-                            #result[path.name].update(self._scan_directory(item_path, current_depth + 1))
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
 
         except OSError:
             self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
         finally:
             if current_depth == -1:
-                self.logger.debug('Scan result:\n%r', result)
+                # нам не нужно имя корневой папки
+                result = result[path.name]
             return result
-            #if current_depth == 0:
-            #    return {path.name: scan}
-            
 
     # ------------------------------------------------------------------
     # Сравнение старого и нового дерева с обработкой изменений
@@ -437,6 +424,7 @@ class WatchdogSource(WatchdogBasic):
         self.logger.debug('Processing initial tree, depth: %d', current_depth)
         for d, d_content in tree.items():
             new_path_parts = path_parts + [d]
+            self.logger.debug('path_parts:%r, new_path_parts:%r, d:%s', path_parts, new_path_parts, d)
             if current_depth == self.sample_depth:
                 sample_path = self.source_folder.joinpath(*new_path_parts)
                 self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
