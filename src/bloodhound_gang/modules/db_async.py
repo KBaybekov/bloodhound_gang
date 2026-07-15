@@ -31,7 +31,7 @@ from enum import Enum
 from dataclasses import dataclass, field, fields, asdict, is_dataclass
 from pathlib import Path
 
-from constants import DB_CFG, TIMEZONE
+from constants import DB_CFG
 from modules.logger import get_logger
 from modules.utils import get_now_time
 
@@ -373,7 +373,7 @@ class ConfigurableMongoDAO:
     - Периодический пинг базы данных
     - Корректное освобождение ресурсов
     """
-    _cfg: Dict[str, Any] = field(default={})
+    _cfg: Dict[str, Any] = field(default_factory=dict)
     """
     Конфигурация подключения и коллекций.
     Ожидает поля: host, user, password, timeout, db_name, collections.
