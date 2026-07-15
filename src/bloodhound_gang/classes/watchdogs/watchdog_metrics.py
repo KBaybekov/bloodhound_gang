@@ -90,7 +90,7 @@ class WatchdogMetrics(WatchdogBasic):
         """Запускает aiohttp сервер для экспозиции метрик."""
         async def metrics_handler(request):
             data = generate_latest(self.registry)
-            return web.Response(body=data, content_type="text/plain; charset=utf-8; version=0.0.4")
+            return web.Response(body=data, content_type="text/plain; version=0.0.4", charset="utf-8")
 
         async def health_handler(request):
             return web.Response(text="OK", status=200)
