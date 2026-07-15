@@ -10,9 +10,9 @@ from csv import writer as csv_writer, QUOTE_ALL
 from io import StringIO
 from datetime import datetime
 
-from constants import LOG_BACKUP_COUNT, LOG_D, LOG_SIZE_MB, PROJECT_NAME
+from constants import LOG_BACKUP_COUNT, LOG_SIZE_MB, MAIN_DS, PROJECT_NAME
 
-
+LOG_D = MAIN_DS.get('log_d', Path('/dev/null'))
 log_max_size = LOG_SIZE_MB * 1024 * 1024
 log_file = LOG_D / f'{PROJECT_NAME}_{datetime.now().strftime("%d-%m-%Y_%H:%M:%S")}.tsv'
 errors_log_file = LOG_D / f'{PROJECT_NAME}_{datetime.now().strftime("%d-%m-%Y_%H:%M:%S")}_error.tsv'

@@ -119,7 +119,8 @@ PROCESS_STATUSES = PROCESS_STATUSES_NOT_STARTED | PROCESS_STATUSES_RUNNING | PRO
 MAIN_DS = {
            'src_d': Path(os.environ['SRC_D']).resolve(),
            'res_d': Path(os.environ['RES_D']).resolve(),
-           'work_d': Path(os.environ['WORK_D']).resolve()
+           'work_d': Path(os.environ['WORK_D']).resolve(),
+           'log_d': Path(os.environ['LOG_D']).resolve()
           }
 
 CFG_D = Path('conf/').resolve()
@@ -135,7 +136,6 @@ CONFIGS = {
 # директория для сохранения текущих состояний вотчдогов, очередей, процессов и т.д.
 STATE_D = Path('data/states/').resolve()
 # директория логов (должен указывать на смонтированную директорию logs)
-LOG_D = Path('logs/').resolve()
 LOG_SIZE_MB = 10
 LOG_BACKUP_COUNT = 3
 

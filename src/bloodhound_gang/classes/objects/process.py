@@ -223,7 +223,7 @@ class Process(BaseModel):
                                       default=None,
                                      )
 
-    #LOG_D
+    #log_d
     log_d: Path = Field(
                              default=Path('/dev/null'),
                              description="Папка с логами",

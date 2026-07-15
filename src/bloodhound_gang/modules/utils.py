@@ -532,7 +532,7 @@ async def check_important_file_objs(
                     err_msg = f"{obj_type.upper()}: Object doesn't exist, not folder OR not readable: {obj.as_posix()}"
                     logger.fatal(err_msg)
                     raise OSError(err_msg)
-            case 'res_d'|'work_d':
+            case 'res_d'|'work_d'|'log_d':
                 if not all([
                             obj.exists(),
                             obj.is_dir(),
