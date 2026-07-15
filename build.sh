@@ -31,6 +31,6 @@ if pip show dunamai >/dev/null 2>&1; then
     fi
 else
     echo "Package dunamai is missing. Installing..."
-    pip install dunamai
+    pip --index-url https://pypi-mirror.gitverse.ru/simple/ install dunamai
     echo "Now retry building"
 fi

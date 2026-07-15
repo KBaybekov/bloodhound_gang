@@ -12,7 +12,7 @@ ENV APP_VERSION=$VERSION
 
 # Установка зависимостей
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --index-url https://pypi-mirror.gitverse.ru/simple/ --user --no-cache-dir -r requirements.txt
 
 # Копирование исходного кода (включая conf/ и src/tasks/ по умолчанию)
 COPY \
