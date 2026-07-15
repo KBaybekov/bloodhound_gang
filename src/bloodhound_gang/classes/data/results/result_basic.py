@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 
-from modules.utils import obj_size_in_Gb
+from modules.utils import get_now_time, obj_size_in_Gb
 
 
 class ResultBasic(BaseModel):
@@ -92,7 +92,7 @@ class ResultBasic(BaseModel):
             work_d_size_GB = obj_size_in_Gb(process.work_d)
 
         return cls(
-                   created=datetime.now(),
+                   created=get_now_time(),
                    task_id=process.task_id,
                    process_id=process.process_id,
                    sample_id=process.sample_id,
@@ -130,7 +130,7 @@ class ResultBasic(BaseModel):
             work_d_size_GB = obj_size_in_Gb(work_d)
 
         if created is None:
-            created = datetime.now()
+            created = get_now_time()
         if tags is None:
             tags = []
 

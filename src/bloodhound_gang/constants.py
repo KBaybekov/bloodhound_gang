@@ -1,5 +1,6 @@
 import os
 import jinja2
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -14,7 +15,6 @@ def request_env_variable(
     load_dotenv()
     return os.environ[variable_name]
 
-
 def parse_str_for_variables_names(
                                   template:str
                                  ) -> set[str]:
@@ -27,7 +27,6 @@ def parse_str_for_variables_names(
     parsed_template = env.parse(template)
     str_variables = meta.find_undeclared_variables(parsed_template)
     return str_variables
-
 
 PROJECT_NAME = 'ont_processor_v2'
 
@@ -68,6 +67,7 @@ DEFAULT_BASECALL_MODELS = {
 #unused
 BASECALL_DATA_TYPES = {'unknown', 'ubam', 'fq'}
 
+TIMEZONE = ZoneInfo(os.environ['TIMEZONE'])
 
 DB_COLLECTION_SAMPLES=os.environ['DB_COLLECTION_SAMPLES']
 DB_COLLECTION_TREES=os.environ['DB_COLLECTION_TREES']

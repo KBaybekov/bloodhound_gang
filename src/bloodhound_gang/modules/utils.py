@@ -6,13 +6,13 @@ import json
 import re
 import shutil
 import yaml
-from datetime import timedelta
+from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 import pandas as pd 
 from pathlib import Path
 from typing import Callable
 
-from constants import PORES, TASK_DELIMITER, DELIMITER
+from constants import PORES, TASK_DELIMITER, DELIMITER, TIMEZONE
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -677,3 +677,12 @@ def validate_nextflow_run_name(name: str) -> None:
         )
 
     return None
+
+def get_now_time(
+                 microseconds:bool=False
+                ) -> datetime:
+    if microseconds:
+        now = datetime.now(tz=TIMEZONE)
+    else:
+        now = datetime.now(tz=TIMEZONE).replace(microsecond=0)
+    return now

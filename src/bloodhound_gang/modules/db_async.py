@@ -26,13 +26,14 @@ from bson import ObjectId, errors as bson_errors
 from inspect import iscoroutinefunction
 from logging import ERROR, CRITICAL
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union, Type, Tuple
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field, fields, asdict, is_dataclass
 from pathlib import Path
 
-from constants import DB_CFG
+from constants import DB_CFG, TIMEZONE
 from modules.logger import get_logger
+from modules.utils import get_now_time
 
 logger = get_logger(name=__name__)
 
@@ -271,8 +272,8 @@ def _to_utc(dt: datetime) -> datetime:
     :rtype: datetime
     """
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=TIMEZONE)
+    return dt
 
 def _normalize(value: Any) -> Any:
     """
@@ -560,7 +561,7 @@ class ConfigurableMongoDAO:
         
         # Нормализуем и вставляем
         normalized_docs = [_normalize(doc) for doc in documents]
-        now = datetime.now(timezone.utc)
+        now = get_now_time(microseconds=True)
             # Добавляем временные метки в каждый документ
         for doc in normalized_docs:
             # created_at_DB устанавливаем только если его ещё нет
@@ -598,7 +599,7 @@ class ConfigurableMongoDAO:
         
         # Нормализуем и вставляем
         normalized_docs = [_normalize(doc) for doc in documents]
-        now = datetime.now(timezone.utc)
+        now = get_now_time(microseconds=True)
         # Добавляем временные метки в каждый документ
         requests = []
         for doc in normalized_docs:
@@ -657,7 +658,7 @@ class ConfigurableMongoDAO:
         coll: AsyncCollection
         coll = getattr(self, collection)
         normalized_doc:Dict[str, Any] = _normalize(doc)
-        now = datetime.now(timezone.utc)
+        now = get_now_time(microseconds=True)
         # Добавляем временные метки
         normalized_doc.setdefault("updated_at_DB", now)
             
@@ -691,7 +692,7 @@ class ConfigurableMongoDAO:
         coll: AsyncCollection
         coll = getattr(self, collection)
         normalized_doc:Dict[str, Any] = _normalize(doc)
-        now = datetime.now(timezone.utc)
+        now = get_now_time(microseconds=True)
         # Добавляем временные метки
         normalized_doc.setdefault("updated_at_DB", now)
         result = await coll.update_one(
@@ -722,7 +723,7 @@ class ConfigurableMongoDAO:
         """
         coll: AsyncCollection = getattr(self, collection)
         d: Dict[str, Any] = _normalize(doc)
-        now = datetime.now(timezone.utc)
+        now = get_now_time(microseconds=True)
         d.setdefault("updated_at_DB", now)
         await coll.update_one(key, {"$set": d, "$setOnInsert": {"created_at_DB": now}}, upsert=True)
 

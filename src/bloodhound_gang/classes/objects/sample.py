@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from classes.objects.process import Process
 
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, ValidationInfo, ConfigDict, PrivateAttr
 
@@ -26,15 +26,12 @@ from constants import (
                        PROCESS_STATUSES_FINISH_FAIL,
                        PROCESS_STATUSES_FINISH_OK
                       )
-from modules.utils import generate_process_id
+from modules.utils import generate_process_id, get_now_time
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
 
 # TODO Прописать поведение self.priority после выполнения всех процессов
-
-def get_now_time():
-    return datetime.now(timezone.utc).astimezone().replace(microsecond=0)
 
 
 class SampleData(BaseModel):

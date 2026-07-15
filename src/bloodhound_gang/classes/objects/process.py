@@ -9,7 +9,7 @@ import asyncio
 import re
 import shlex
 from bson import ObjectId
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator, model_validator
 
@@ -20,11 +20,12 @@ from constants import (
                        PROCESS_STATUSES_RUNNING,
                        PROCESS_STATUSES_FINISHED,
                        NEXTFLOW_CMD_VARIABLES,
-                       NEXTFLOW_TEMPLATE
+                       NEXTFLOW_TEMPLATE                       
                       )
 from modules.utils import (
                            dehumanize_timedelta,
                            dehumanize_timedelta_to_seconds,
+                           get_now_time,
                            humanize_timedelta,
                            is_integer,
                            decode_process_id,
@@ -392,7 +393,7 @@ class Process(BaseModel):
         """
         Указывает момент своего вызова как время окончания обработки.
         """
-        self.finish = datetime.now(tz=timezone.utc)
+        self.finish = get_now_time()
         if self.start is not None and self.finish is not None:
             # TODO извлекать данные о длительности из репорта Nextflow
             self.duration = self.finish - self.start
@@ -603,7 +604,7 @@ class Process(BaseModel):
 
         # Запуск процесса - впервые
         if self.status == 'scheduled':
-            self.start = datetime.now(tz=timezone.utc)
+            self.start = get_now_time()
             # Создаём и валидируем nextflow_id
             try:
                 if self.nextflow_id == 'UNDEFINED':
@@ -725,7 +726,7 @@ class Process(BaseModel):
         if self.start is None or self.timeout is None or self.pid_f is None:
             return
 
-        elapsed = (datetime.now(tz=timezone.utc) - self.start).total_seconds()
+        elapsed = (get_now_time() - self.start).total_seconds()
         if elapsed > self.timeout:
             logger.warning(
                 "Timeout reached for process %s (%.1f sec > %d sec). Terminating.",
