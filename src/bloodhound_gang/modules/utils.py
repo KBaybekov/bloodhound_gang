@@ -681,8 +681,7 @@ def validate_nextflow_run_name(name: str) -> None:
 def get_now_time(
                  microseconds:bool=False
                 ) -> datetime:
-    if microseconds:
-        now = datetime.now(tz=TIMEZONE)
-    else:
-        now = datetime.now(tz=TIMEZONE).replace(microsecond=0)
-    return now
+    now = datetime.now(TIMEZONE)
+    if not microseconds:
+        now = now.replace(microsecond=0)
+    return now.replace(tzinfo=None)

@@ -258,7 +258,7 @@ ERROR_HANDLER_LOOKUP_OPERATIONS = {
                                    'retry_delay':1
                                   }
 
-
+'''
 def _to_utc(dt: datetime) -> datetime:
     """
     Преобразует объект datetime в UTC-зону.
@@ -274,7 +274,7 @@ def _to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=TIMEZONE)
     return dt
-
+'''
 def _normalize(value: Any) -> Any:
     """
     Рекурсивно нормализует значение для совместимости с BSON (MongoDB).
@@ -297,8 +297,10 @@ def _normalize(value: Any) -> Any:
     if isinstance(value, Path):
         return value.as_posix()
 
+    # предполагается, что приходит документ уже с выставленной таймзоной
     if isinstance(value, datetime):
-        return _to_utc(value)
+        #return _to_utc(value)
+        return value
 
     if isinstance(value, dict):
         # Рекурсивно нормализуем каждое значение словаря
