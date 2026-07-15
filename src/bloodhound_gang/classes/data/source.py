@@ -30,8 +30,7 @@ class SourceData(BaseModel):
                       )
     size_GB: float = Field(
                            default=0.0,
-                           description="Размер исходных данных в ГБ, вычисляется в validate_source_path()",
-                           frozen=True
+                           description="Размер исходных данных в ГБ, вычисляется в validate_source_path()"
                           )
     
     def model_post_init(self, __context):
