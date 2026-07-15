@@ -355,6 +355,7 @@ class WatchdogSource(WatchdogBasic):
         if sample_path in self._sample_ds_DB:
             return None
         try:
+            self.logger.debug('sample_path:%s, batch_data:\n%r', sample_path,batch_data)
             sample_size = self._get_sample_file_size(batch_data)
             sample = Sample.model_validate(
                                         obj={'source_d':sample_path},
