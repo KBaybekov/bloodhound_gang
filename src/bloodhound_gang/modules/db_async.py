@@ -147,7 +147,7 @@ def pymongo_error_handler(
         if is_async:
             async def async_wrapper(*args, **kwargs):
                 last_exception = None
-                for attempt in range(retries + 1):
+                for attempt in range(retries):
                     try:
                         return await f(*args, **kwargs)
                     except exceptions as e:
@@ -167,7 +167,7 @@ def pymongo_error_handler(
         else:
             def sync_wrapper(*args, **kwargs):
                 last_exception = None
-                for attempt in range(retries + 1):
+                for attempt in range(retries):
                     try:
                         return f(*args, **kwargs)
                     except exceptions as e:
@@ -185,6 +185,9 @@ def pymongo_error_handler(
                 return default_return
             return sync_wrapper
 
+    # Мы пробуем выполнить функцию в цикле по retriesб поэтому он должен быть минимум 1
+    if retries == 0:
+        retries += 1
     # Если декоратор применён без параметров
     if func is not None:
         return decorator(func)

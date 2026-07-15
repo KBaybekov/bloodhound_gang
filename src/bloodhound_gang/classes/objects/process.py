@@ -341,7 +341,8 @@ class Process(BaseModel):
         """
         Сериализует экземпляр Process в документ для загрузки в БД.
         """
-        doc = self.model_dump(mode='json', exclude={'result'})
+        doc = self.model_dump(mode='json', exclude={'db_id','result'})
+        doc['_id'] = self.db_id
         #doc['_id'] = self._id
         if self.duration is not None:
             doc['duration'] = humanize_timedelta(self.duration)
