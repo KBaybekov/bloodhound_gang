@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING,  Union as TypingUnion
 if TYPE_CHECKING:
     from classes.objects.process import Process
     from classes.data.files.fastq_ont import FastqONT
@@ -33,7 +33,7 @@ class ResultBasecallingBasic(ResultBasic):
                                  default=None,
                                  description="HTML-файл, содержащий информацию о QC по всему бейсколлингу"
                                 )
-    basecall_data: list[UbamONT|FastqONT] = Field(
+    basecall_data: list[TypingUnion['UbamONT','FastqONT']] = Field(
                                                   default_factory=list,
                                                   description="Список с метаданными UBAM/FASTQ"
                                                  )
@@ -62,7 +62,7 @@ class ResultBasecallingBasic(ResultBasic):
                     source_files_metadata: Path|None = None,
                     generated_pod5s_d: Path|None = None,
                     multiqc_f: Path|None = None,
-                    basecall_data: list[UbamONT|FastqONT] = [],
+                    basecall_data: list[TypingUnion['UbamONT','FastqONT']] = [],
                     **kwargs
                    ) -> "ResultBasecallingBasic":
         """Создаёт экземпляр ResultBasecallingBasic из явных параметров."""
