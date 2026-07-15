@@ -159,21 +159,26 @@ class WatchdogSource(WatchdogBasic):
             # Ищем все элементы в директории
             items = path.glob("*")
             for item_path in items:
-                # Если мы на уровне батча - читаем размеры файлов
-                if current_depth == self.batch_depth:
-                    result[path.name].update({
-                                              item_path.name:obj_size_in_Gb(
-                                                                            obj=item_path,
-                                                                            precision=6
-                                                                           )
-                                             })
-                # Иначе - рекурсивно сканируем найденные директории
-                else:
-                    # Если мы на уровне групп - сканируем только те, которые умеем обрабатывать
-                    if item_path.is_dir():
-                        if current_depth == -1 and item_path.name not in DATA_GROUPS_FOR_WATCHING:
-                            continue
-                        result[path.name].update(self._scan_directory(item_path, current_depth + 1))
+                match current_depth:
+                    # Если мы на начальном уровне - сканируем только те папки, которые входят в область нашего интереса
+                    case -1:
+                        if item_path.is_dir():
+                            if item_path.name not in DATA_GROUPS_FOR_WATCHING:
+                                continue
+                            result[path.name].update(self._scan_directory(item_path, current_depth + 1))
+                    # Если мы на уровне батча - читаем размеры файлов
+                    case self.batch_depth:
+                        result[path.name].update({
+                                                item_path.name:obj_size_in_Gb(
+                                                                                obj=item_path,
+                                                                                precision=6
+                                                                            )
+                                                })
+                    # Иначе - рекурсивно сканируем найденные директории
+                    case _:
+                        if item_path.is_dir():
+                            result[path.name].update(self._scan_directory(item_path, current_depth + 1))
+
         except OSError:
             self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
         finally:    
