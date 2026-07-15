@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING,  Union as TypingUnion
+from typing import Literal, TYPE_CHECKING,  Union as TypingUnion
 if TYPE_CHECKING:
     from classes.objects.process import Process
     from classes.data.files.fastq_ont import FastqONT
@@ -20,7 +20,7 @@ class ResultBasecallingBasic(ResultBasic):
     """
     Данные бейзколлинга без модификаций
     """
-    type: str = 'basecalling_basic'
+    type: Literal['basecalling_basic'] = 'basecalling_basic' # type: ignore[assignment]
     source_files_metadata: Path|None = Field(
                                              default=None,
                                              description="TSV-файл, содержащий метаданные исходных файлов: создан, частота секвенирования, seq-kit и т.д."
