@@ -108,8 +108,7 @@ class Sample(BaseModel):
                            default='UNDEFINED',
                            description="Идентификатор образца",
                            min_length=1,
-                           max_length=35, #Nextflow runName limitations
-                           frozen=True
+                           max_length=35 #Nextflow runName limitations
                           )
 
     # Directories
@@ -120,13 +119,11 @@ class Sample(BaseModel):
                           )
     work_d: Path = Field(
                          default=Path(),
-                         description="Директория образца с временными рабочими данными",
-                         frozen=True
+                         description="Директория образца с временными рабочими данными"
                         )
     res_d: Path = Field(
                         default=Path(),
-                        description="Директория образца с результатами обработки",
-                        frozen=True
+                        description="Директория образца с результатами обработки"
                        )
     
     species: str = Field(
@@ -135,13 +132,11 @@ class Sample(BaseModel):
                         )
     group: str = Field(
                        default='unknown_group',
-                       description="Группа образца",
-                       frozen=True
+                       description="Группа образца"
                       )
     subgroup: str = Field(
                           default='unknown_subgroup',
-                          description="Подгруппа образца",
-                          frozen=True
+                          description="Подгруппа образца"
                          )
     priority: bool = Field(
                            default=False,
