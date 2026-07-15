@@ -36,23 +36,23 @@ logger = get_logger(__name__)
 
 class SampleData(BaseModel):
     source: Dict[str, SourceData] = Field(
-                                          default_factory=dict,
+                                          default={},
                                           description='Хранение метаданных для папки с исходными данными',
                                           examples=[{'source.path':'SourceData'}]
                                          )
     result: Dict[str, ResultUnion] = Field(
-                                           default_factory=dict,
+                                           default={},
                                            description='Хранение метаданных для результатов обработки данных',
                                            examples=[{'process_id':'ResultData'}]
                                           )
 
 
 class ProcessData(BaseModel):
-    created: Dict[str, list[str]] = Field(default_factory=dict, examples=[{'basecalling_aaa':['process_id_0']}])
-    queued: Dict[str, list[str]] = Field(default_factory=dict)
-    running: Dict[str, list[str]] = Field(default_factory=dict)
-    finished: Dict[str, list[str]] = Field(default_factory=dict)
-    failed: Dict[str, list[str]] = Field(default_factory=dict)
+    created: Dict[str, list[str]] = Field(default={}, examples=[{'basecalling_aaa':['process_id_0']}])
+    queued: Dict[str, list[str]] = Field(default={})
+    running: Dict[str, list[str]] = Field(default={})
+    finished: Dict[str, list[str]] = Field(default={})
+    failed: Dict[str, list[str]] = Field(default={})
 
     def add_process_id(
                        self,
@@ -156,7 +156,7 @@ class Sample(BaseModel):
                              description="Результаты обработки данных, относящиеся к образцу"
                             )
     batches: Dict[str, Batch] = Field(
-                                      default_factory=dict,
+                                      default={},
                                       description="Батчи, относящиеся к образцу"
                                      )
     source_d_size_GB: float = Field(
@@ -168,7 +168,7 @@ class Sample(BaseModel):
                                  description="Флаг удаления исходных данных"
                                 )
     history: Dict[datetime, str] = Field(
-                                         default_factory=dict,
+                                         default={},
                                          description="История изменений",
                                          examples=[{get_now_time(): 'Sample created'}]
                                         )

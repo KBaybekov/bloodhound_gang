@@ -373,7 +373,7 @@ class ConfigurableMongoDAO:
     - Периодический пинг базы данных
     - Корректное освобождение ресурсов
     """
-    _cfg: Dict[str, Any] = field(default_factory=dict)
+    _cfg: Dict[str, Any] = field(default={})
     """
     Конфигурация подключения и коллекций.
     Ожидает поля: host, user, password, timeout, db_name, collections.

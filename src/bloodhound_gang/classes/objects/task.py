@@ -53,7 +53,7 @@ class Task(BaseModel):
                              description="Описание задания"
                             )
     db_query: Dict[str, Any] = Field(
-                                     default_factory=dict,
+                                     default={},
                                      description="Запрос в БД для получения выборки образцов, подходящих для задания"
                                     )
     pipeline: str = Field(
@@ -62,7 +62,7 @@ class Task(BaseModel):
                           min_length=3
                          )
     environment_variables: Dict[str, str] = Field(
-                                                  default_factory=dict,
+                                                  default={},
                                                   description="Словарь переменных окружения"
                                                  )
     queue: str = Field(

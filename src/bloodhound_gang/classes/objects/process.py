@@ -95,7 +95,7 @@ class Process(BaseModel):
                           )
     # TASK SPECIFIC & RUNTIME Variables for SHELL & ENV
     env: Dict[str, str] = Field(
-                                default_factory=dict,
+                                default={},
                                 description="Переменные окружения"
                                )
     host: str|None = Field(

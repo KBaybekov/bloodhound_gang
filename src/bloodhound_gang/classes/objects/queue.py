@@ -31,7 +31,7 @@ class SharedResource(BaseModel):
                              examples=[['1', '2', '3']]
                             )
     busy_values: dict[str, str] = Field(
-                                        default_factory=dict,
+                                        default={},
                                         description='Словарь занятых значений и id процессов, их использующих',
                                         examples=[{'1':'process_0'}]
                                        )
@@ -127,7 +127,7 @@ class Queue(BaseModel):
                                        description="Запущенные процессы"
                                       )
     processes_planned: Dict[int, Process] = Field(
-                                              default_factory=dict,
+                                              default={},
                                               description="Словарь порядковых номеров процессов в очереди и их process_id"
                                              )
     processes_unplanned: set[Process] = Field(
@@ -135,7 +135,7 @@ class Queue(BaseModel):
                                           description="Созданные процессы, ещё не получившие свой номер в очереди"
                                          )
     last_started_process: Dict[str, int] = Field(
-                                                 default_factory=dict,
+                                                 default={},
                                                  description="process_id и порядковый номер в очереди последнего запущенного процесса"
                                                 )
 

@@ -133,12 +133,12 @@ class WatchdogSource(WatchdogBasic):
         self.logger.debug('Found %d objects on sample depth', self.samples_in_filesystem_found)
         if old_tree is None:
             # Первый запуск – создаём образцы для всех sample и сохраняем дерево
-            self.logger.info('Это первое сканирование для %s', self.source_folder.as_posix())
+            self.logger.info('Произведено первое сканирование для %s', self.source_folder.as_posix())
             self._process_initial_tree(tree=new_tree.get('tree', {}))
             await self._save_tree(new_tree)
         else:
             # Сравниваем и обрабатываем изменения, new_tree мутирует
-            self.logger.info('Повторное сканирование для %s', self.source_folder.as_posix())
+            self.logger.info('Произведено повторное сканирование для %s', self.source_folder.as_posix())
             changed = await self._compare_and_process_tree(
                                                     old=old_tree,
                                                     new=new_tree,
@@ -165,19 +165,19 @@ class WatchdogSource(WatchdogBasic):
             # Ищем все элементы в директории
             items = path.glob("*")
             for item_path in items:
-                self.logger.debug("Checking path: %s", item_path.as_posix())
+                #self.logger.debug("Checking path: %s", item_path.as_posix())
                 match current_depth:
                     # Если мы на начальном уровне - сканируем только те папки, которые входят в область нашего интереса
                     case -1:
                         if item_path.is_dir():
                             if item_path.name not in DATA_GROUPS_FOR_WATCHING:
-                                self.logger.debug("It is obj to skip!")
+                                #self.logger.debug("It is obj to skip!")
                                 continue
                             self.logger.debug("Adding to tree: %s", item_path.as_posix())
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
                     # Если мы на уровне батча - читаем размеры файлов
                     case self.max_depth:
-                        self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
+                        #self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
                                                 item_path.name:obj_size_in_Gb(
                                                                               obj=item_path,
@@ -187,7 +187,7 @@ class WatchdogSource(WatchdogBasic):
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
                         if item_path.is_dir():
-                            self.logger.debug("Adding to tree: %s", item_path.as_posix())
+                            #self.logger.debug("Adding to tree: %s", item_path.as_posix())
                             if current_depth == (self.sample_depth - 1):
                                 self.samples_in_filesystem_found += 1
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
@@ -355,7 +355,6 @@ class WatchdogSource(WatchdogBasic):
         if sample_path in self._sample_ds_DB:
             return None
         try:
-            self.logger.debug('sample_path:%s, batch_data:\n%r', sample_path,batch_data)
             sample_size = self._get_sample_file_size(batch_data)
             sample = Sample.model_validate(
                                         obj={'source_d':sample_path},
