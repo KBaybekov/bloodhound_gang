@@ -13,7 +13,8 @@ from constants import (
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
                        MAIN_DS,
-                       MIN_STABLE_TIME
+                       MIN_STABLE_TIME,
+                       SOURCE_DS_NAMES
                       )
 from modules.db_async import ConfigurableMongoDAO
 from modules.utils import obj_size_in_Gb
@@ -261,7 +262,7 @@ class WatchdogSource(WatchdogBasic):
                         new_folders.discard(d)
                         del new_dict[d]
                         continue
-                    # Если это sample_level, нужно создать Sample
+                    # Если это sample_level - надо попробовать создать Sample
                     if depth == self.sample_depth - 1:
                         self.logger.debug("New sample directory discovered: %s", (base_path / d).as_posix())
                         self._create_sample(
@@ -343,7 +344,9 @@ class WatchdogSource(WatchdogBasic):
                        sample_path: Path,
                        batch_data:Dict[str, Dict[str, float]]
                       ):
-        """Создать новый образец и сохранить в коллекцию samples."""
+        """
+        Создаёт новый объект Sample и в случае успеха при создании сохраняет его в соответствующую коллекцию в БД.
+        """
         if sample_path in self._sample_ds_DB:
             return None
         try:
@@ -397,6 +400,7 @@ class WatchdogSource(WatchdogBasic):
         Возвращает общий размер файлов в sample.
         """
         total_size = 0.0
+        self.logger.debug('Batch data:, %r', batch_data)
         for batch_files in batch_data.values():
             for file_size in batch_files.values():
                 total_size += file_size
