@@ -12,7 +12,8 @@ from constants import (
                        DATA_GROUPS_FOR_WATCHING,
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
-                       MAIN_DS
+                       MAIN_DS,
+                       MIN_STABLE_TIME
                       )
 from modules.db_async import ConfigurableMongoDAO
 from modules.utils import obj_size_in_Gb
@@ -32,7 +33,6 @@ class WatchdogSource(WatchdogBasic):
         name: str,
         stop_event: asyncio.Event,
         dao:ConfigurableMongoDAO,                       # объект доступа к данным (MongoDB)
-        min_stable_time: float = 60*60*24,   # время стабильности файла/папки в секундах
         max_depth: int = 4,             # глубина рекурсии: 0-group,1-subgroup,2-sample,3-batch
         **kwargs
     ):
@@ -48,7 +48,7 @@ class WatchdogSource(WatchdogBasic):
         self.res_folder = MAIN_DS['res_d']
         self.db_collection_file_trees = DB_COLLECTION_TREES
         self.db_collection_samples = DB_COLLECTION_SAMPLES
-        self.min_stable_time = min_stable_time
+        self.min_stable_time = MIN_STABLE_TIME
         self._sample_ds_DB: set[Path] = set()
         self.samples_to_DB: List[dict] = []
         # sample - на глубине 2
