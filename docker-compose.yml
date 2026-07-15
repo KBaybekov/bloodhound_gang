@@ -29,6 +29,7 @@ services:
       - ${SRC_D}:${SRC_D}:ro
       - ${RES_D}:${RES_D}:rw
       - ${WORK_D}:${WORK_D}:rw
+      - ${LOG_D}:${LOG_D}:rw
 
       # Данные (сохраняются на хосте)
       - ./data/:/home/bloodhound_gang/data/:rw
