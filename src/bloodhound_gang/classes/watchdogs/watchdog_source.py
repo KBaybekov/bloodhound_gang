@@ -206,6 +206,8 @@ class WatchdogSource(WatchdogBasic):
         except OSError:
             self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
         finally:
+            if current_depth == -1:
+                self.logger.debug('Scan result:\n%r', result)
             return result
             #if current_depth == 0:
             #    return {path.name: scan}
