@@ -49,7 +49,7 @@ class WatchdogSource(WatchdogBasic):
         self.db_collection_file_trees = DB_COLLECTION_TREES
         self.db_collection_samples = DB_COLLECTION_SAMPLES
         self.min_stable_time = MIN_STABLE_TIME
-        self._sample_ds_DB: set[Path] = set()
+        self._sample_ds_DB: Dict[Path, bool] = {}
         self.samples_to_DB: List[dict] = []
         # sample - на глубине 2
         self.max_depth = max_depth  # current source_d structure: group->subgroup->sample->batch->ONT batch files
@@ -83,14 +83,16 @@ class WatchdogSource(WatchdogBasic):
         docs = await self.dao.find(
                                    collection=self.db_collection_samples,
                                    query={},
-                                   projection={'source_d':1}
+                                   projection={
+                                               'source_d':1,
+                                               'source_removed':1
+                                              }
                                   )
-        
-        self._sample_ds_DB = set(
-                                 Path(doc['source_d']) for doc in docs
-                                 if 'source_d' in doc
-                                )
-        self.samples_count = len(self._sample_ds_DB)
+        self._sample_ds_DB = {
+                              Path(doc['source_d']):doc['source_removed'] for doc in docs
+                              if 'source_d' in doc and 'source_removed' in doc
+                             }
+        self.samples_count = len(list(self._sample_ds_DB.keys()))
         old_tree = await self._load_tree()
         return old_tree
     
@@ -136,7 +138,7 @@ class WatchdogSource(WatchdogBasic):
         if old_tree is None:
             # Первый запуск – создаём образцы для всех sample и сохраняем дерево
             self.logger.info('Произведено первое сканирование для %s', self.source_folder.as_posix())
-            self._process_initial_tree(tree=new_tree.get('tree', {}))
+            await self._process_initial_tree(tree=new_tree.get('tree', {}))
             await self._save_tree(new_tree)
         else:
             # Сравниваем и обрабатываем изменения, new_tree мутирует
@@ -205,7 +207,7 @@ class WatchdogSource(WatchdogBasic):
     # ------------------------------------------------------------------
     # Инициализация дерева при первом запуске
     # ------------------------------------------------------------------
-    def _process_initial_tree(
+    async def _process_initial_tree(
                               self,
                               tree:Dict[str, dict],
                               path_parts: List[Path|str]=[]
@@ -219,14 +221,14 @@ class WatchdogSource(WatchdogBasic):
                 sample_path = self.source_folder.joinpath(*new_path_parts)
                 self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
                 # Пробуем создать образец
-                self._create_sample(
+                await self._create_sample(
                                     sample_path=sample_path,
                                     batch_data=d_content,
                                     is_it_Sample_check=True
                                    )
                 # Глубже спускаться нет смысла - образцы там не ждём
             else:
-                self._process_initial_tree(d_content, new_path_parts)
+                await self._process_initial_tree(d_content, new_path_parts)
         return None
     
     # ------------------------------------------------------------------
@@ -310,7 +312,7 @@ class WatchdogSource(WatchdogBasic):
                     # Если это sample_level - надо попробовать создать Sample
                     if depth == self.sample_depth - 1:
                         self.logger.debug("New sample directory discovered: %s", (base_path / d).as_posix())
-                        self._create_sample(
+                        await self._create_sample(
                                             sample_path=d_path,
                                             batch_data=new_dict[d],
                                             is_it_Sample_check=True
@@ -386,6 +388,12 @@ class WatchdogSource(WatchdogBasic):
         """
         Сохраняет данные в базу данных.
         """
+        # Защита неизменяемых полей при обновлении существующих документов
+        for doc in self.samples_to_DB:
+            if '_id' in doc:
+                doc.pop('work_d', None)
+                doc.pop('res_d', None)
+                doc.pop('source_d', None)  # source_d тоже не должен меняться
         await self.dao.upsert_many(
                             collection=self.db_collection_samples,
                             documents=self.samples_to_DB
@@ -395,16 +403,24 @@ class WatchdogSource(WatchdogBasic):
     # ------------------------------------------------------------------
     # Управление образцами
     # ------------------------------------------------------------------
-    def _create_sample(
-                       self,
-                       sample_path: Path,
-                       batch_data:Dict[str, Dict[str, float]],
-                       is_it_Sample_check:bool=False
-                      ):
+    async def _create_sample(
+                             self,
+                             sample_path: Path,
+                             batch_data:Dict[str, Dict[str, float]],
+                             is_it_Sample_check:bool=False
+                            ):
         """
         Создаёт новый объект Sample и в случае успеха при создании сохраняет его в соответствующую коллекцию в БД.
         """
-        if sample_path in self._sample_ds_DB:
+        if sample_path in self._sample_ds_DB.keys():
+            # Директория была ранее удалена
+            if self._sample_ds_DB[sample_path]:
+                self.logger.debug("Restoring of Sample for path: %s", sample_path)
+                await self._mark_sample_changed(
+                                                sample_path=sample_path,
+                                                batch_data=batch_data,
+                                                restored=True
+                                                )
             return None
         try:
             sample_size = self._get_sample_file_size(batch_data)
@@ -434,8 +450,10 @@ class WatchdogSource(WatchdogBasic):
                              self,
                              sample_path:Path,
                              history_msg: str = '',
+                             batch_data:Dict[str, Dict[str, float]] = {},
                              new_size: float = 0.00,
-                             deleted: bool = False
+                             deleted: bool = False,
+                             restored: bool = False
                             ) -> None:
         """
         Найти образец по пути и внести запись об изменении.
@@ -458,6 +476,12 @@ class WatchdogSource(WatchdogBasic):
             if deleted:
                 sample.source_was_removed()
                 self.logger.debug("Sample source directory removed: %s", sample_path.as_posix())
+            if restored:
+                sample.source_removed = False
+                new_size = self._get_sample_file_size(batch_data)
+                sample.source_d_size_GB = new_size
+                sample.make_note("Sample directory restored")
+                self.logger.debug("Restored previously deleted sample: %s", sample_path.as_posix())
             self.samples_to_DB.append(sample.to_db())
             self.logger.debug("Sample document updated and added to save queue")
         else:
@@ -474,8 +498,8 @@ class WatchdogSource(WatchdogBasic):
         for value in batch_data.values():
             if isinstance(value, (int, float)):
                 total += value
-            #elif isinstance(value, dict):
-            #    total += self._get_sample_file_size(value)
+            elif isinstance(value, dict):
+                total += self._get_sample_file_size(value) # pyright: ignore[reportArgumentType]
             else:
                 self.logger.warning("Unexpected type in batch size data: %s", type(value))
         return total
