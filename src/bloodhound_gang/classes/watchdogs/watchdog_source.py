@@ -256,7 +256,7 @@ class WatchdogSource(WatchdogBasic):
             new_files_size = self._get_sample_file_size(batch_data=new)
             size_changed = abs(old_files_size - new_files_size) > 1e-9
             if size_changed:
-                change_msg += f"Changed source filesize: {old_files_size} -> {new_files_size}\n"
+                change_msg += f"Changed source filesize: {old_files_size} -> {new_files_size}"
 
             # сравниваем списки батчей
             _, new_batches, removed_batches = self._compare_file_sets(set(old.keys()), set(new.keys()))
@@ -273,13 +273,13 @@ class WatchdogSource(WatchdogBasic):
             self.logger.debug("New batches after stability check: %s", new_batches)
             
             if new_batches:
-                change_msg += f"New batches: [{'; '.join(new_batches)}]\n"
+                change_msg += f"New batches: [{'; '.join(new_batches)}]"
 
             if removed_batches:
-                change_msg += f"Removed batches: [{'; '.join(removed_batches)}]\n"
+                change_msg += f"Removed batches: [{'; '.join(removed_batches)}]"
             
-            batch_set_changed = any([new_batches, removed_batches])
-            if batch_set_changed:
+            changed = size_changed or any([new_batches, removed_batches])
+            if changed:
                 # base_path здесь — это путь к образцу (родитель батчей)
                 self.logger.debug(
                                   "Batch set changed for sample %s: new=%s, removed=%s",
@@ -470,12 +470,15 @@ class WatchdogSource(WatchdogBasic):
         """
         Возвращает общий размер файлов в sample.
         """
-        total_size = 0.0
-        self.logger.debug('Batch data:, %r', batch_data)
-        for batch, batch_files in batch_data.items():
-            for _, file_size in batch_files.items():
-                total_size += file_size
-        return total_size
+        total = 0.0
+        for value in batch_data.values():
+            if isinstance(value, (int, float)):
+                total += value
+            #elif isinstance(value, dict):
+            #    total += self._get_sample_file_size(value)
+            else:
+                self.logger.warning("Unexpected type in batch size data: %s", type(value))
+        return total
 
     # ------------------------------------------------------------------
     # Действия при экстренной остановке
