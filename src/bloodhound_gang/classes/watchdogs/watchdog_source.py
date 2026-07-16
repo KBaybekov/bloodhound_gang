@@ -310,7 +310,7 @@ class WatchdogSource(WatchdogBasic):
                         del new_dict[d]
                         continue
                     # Если это sample_level - надо попробовать создать Sample
-                    if depth == self.sample_depth - 1:
+                    if depth == self.sample_depth - 1 or depth == self.sample_depth:
                         self.logger.debug("New sample directory discovered: %s", (base_path / d).as_posix())
                         await self._create_sample(
                                             sample_path=d_path,
