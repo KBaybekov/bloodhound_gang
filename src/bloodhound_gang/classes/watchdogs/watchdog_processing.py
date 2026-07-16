@@ -637,7 +637,11 @@ class WatchdogProcessing(WatchdogBasic):
         cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
             self.queues.clear()
-            queue_datas = next(iter(data.values()), [])
+            queue_datas:list[dict] = []
+            try:
+                queue_datas = next(iter(data.values()), [])
+            except Exception:
+                pass
             for queue_data in queue_datas:
                 if queue_data:
                     try:
@@ -721,7 +725,11 @@ class WatchdogProcessing(WatchdogBasic):
         """
         cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
-            hosts_datas = next(iter(data.values()), [])
+            hosts_datas = []
+            try:
+                hosts_datas = next(iter(data.values()), [])
+            except Exception:
+                pass
             for host_data in  hosts_datas:
                 if host_data:
                     try:
@@ -806,7 +814,11 @@ class WatchdogProcessing(WatchdogBasic):
             if yaml is not None:
                 cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
                 if cfg_changed and data:
-                    command_datas:list[dict] = next(iter(data.values()), [])
+                    command_datas:list[dict] = []
+                    try:
+                        command_datas = next(iter(data.values()), [])
+                    except Exception:
+                        pass
                     if command_datas:
                         self.logger.debug("Processing %d user commands", len(command_datas))
                         for command_data in command_datas:
