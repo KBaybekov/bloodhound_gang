@@ -125,6 +125,7 @@ class WatchdogSource(WatchdogBasic):
         """
         Сканер файловой системы, сравнивает старое и новое дерево файлов
         """
+        self.samples_in_filesystem_found = 0
         new_tree = {
                     "root_path": self.source_folder,
                     "tree": self._scan_directory(
@@ -203,6 +204,29 @@ class WatchdogSource(WatchdogBasic):
             return result
 
     # ------------------------------------------------------------------
+    # Инициализация дерева при первом запуске
+    # ------------------------------------------------------------------
+    def _process_initial_tree(
+                              self,
+                              tree:Dict[str, dict],
+                              path_parts: List[Path|str]=[]
+                             ):
+        """Рекурсивно создаёт образцы для всех sample-папок."""
+        current_depth = len(path_parts)
+        self.logger.debug('Processing initial tree, depth: %d', current_depth)
+        for d, d_content in tree.items():
+            new_path_parts = path_parts + [d]
+            if current_depth == self.sample_depth:
+                sample_path = self.source_folder.joinpath(*new_path_parts)
+                self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
+                # Пробуем создать образец
+                self._create_sample(sample_path, d_content)
+                # Глубже спускаться нет смысла - образцы там не ждём
+            else:
+                self._process_initial_tree(d_content, new_path_parts)
+        return None
+    
+    # ------------------------------------------------------------------
     # Сравнение старого и нового дерева с обработкой изменений
     # ------------------------------------------------------------------
     async def _compare_and_process_tree(
@@ -219,6 +243,8 @@ class WatchdogSource(WatchdogBasic):
         changed = False
         change_msg = ''
 
+        self.logger.debug("depth=%d, base_path=%s", depth, base_path.as_posix())
+
         if depth == self.sample_depth:
             # old и new – {batch:{file:size}}
             # проверяем, изменился ли общий размер файлов
@@ -230,13 +256,17 @@ class WatchdogSource(WatchdogBasic):
 
             # сравниваем списки батчей
             _, new_batches, removed_batches = self._compare_file_sets(set(old.keys()), set(new.keys()))
+            self.logger.debug("New batches before stability check: %s", new_batches)
+            self.logger.debug("Removed batches: %s", removed_batches)
             
             # Проверяем, стабильны ли новые батчи (итерируемся по копии)
             for new_batch in list(new_batches):
                 batch_path = base_path / new_batch
                 if not self._is_stable(batch_path):
+                    self.logger.debug("New batch '%s' is not stable, removing from tree", new_batch)
                     new_batches.discard(new_batch)
                     del new[new_batch]
+            self.logger.debug("New batches after stability check: %s", new_batches)
             
             if new_batches:
                 change_msg += f"New batches: [{'; '.join(new_batches)}]\n"
@@ -262,10 +292,13 @@ class WatchdogSource(WatchdogBasic):
                                                                       set(old_dict.keys()),
                                                                       set(new_dict.keys())
                                                                      )
+            
             if new_folders:
+                self.logger.debug("New folders before stability check: %s", new_folders)
                 for d in list(new_folders):
                     d_path = base_path / d
                     if not self._is_stable(d_path):
+                        self.logger.debug("New folder '%s' is not stable, removing from tree", d)
                         new_folders.discard(d)
                         del new_dict[d]
                         continue
@@ -277,6 +310,7 @@ class WatchdogSource(WatchdogBasic):
                                             batch_data=new_dict[d]
                                         )
             if removed_folders:
+                self.logger.debug("Removed folders: %s", removed_folders)
                 for d in removed_folders:
                     d_path = base_path / d
                     # Удалён целый sample – помечаем образец
@@ -301,6 +335,7 @@ class WatchdogSource(WatchdogBasic):
                                                               )
                 changed = changed or child_changed
 
+        self.logger.debug("After checking tree: changed=%s for base_path=%s", changed, base_path.as_posix())
         return changed
 
     def _compare_file_sets(
@@ -328,8 +363,16 @@ class WatchdogSource(WatchdogBasic):
         try:
             mtime = path.stat().st_mtime
         except OSError:
+            self.logger.exception("Путь недоступен: %s", path.as_posix())
             return False
-        return (time.time() - mtime) >= self.min_stable_time
+        else:
+            age = time.time() - mtime
+            is_stable = age >= self.min_stable_time
+            self.logger.debug(
+                              "%s : mtime=%s, now=%s, age=%.1f sec, threshold=%d sec -> stable=%s",
+                              path.as_posix(), mtime, time.time(), age, self.min_stable_time, is_stable
+                             )
+        return is_stable
     
     async def save_to_db(
                          self
@@ -383,11 +426,14 @@ class WatchdogSource(WatchdogBasic):
         Найти образец по пути и внести запись об изменении.
         При deleted=True можно дополнительно пометить как удалённый.
         """
-        self.logger.debug("Marking sample changed: %s (deleted=%s, msg=%s)", sample_path.as_posix(), deleted, history_msg)
+        self.logger.debug(
+                          "Marking sample changed: %s (deleted=%s, msg=%s)",
+                          sample_path.as_posix(), deleted, history_msg
+                         )
         sample_doc = await self.dao.find_one(
-                                       collection=self.db_collection_samples,
-                                       query={"source_d": sample_path.as_posix()}
-                                      )
+                                             collection=self.db_collection_samples,
+                                             query={"source_d": sample_path.as_posix()}
+                                            )
         if sample_doc:
             sample = Sample.from_db(sample_doc)
             if history_msg:
@@ -398,6 +444,9 @@ class WatchdogSource(WatchdogBasic):
                 sample.source_was_removed()
                 self.logger.debug("Sample source directory removed: %s", sample_path.as_posix())
             self.samples_to_DB.append(sample.to_db())
+            self.logger.debug("Sample document updated and added to save queue")
+        else:
+            self.logger.warning("Документ Sample не найден для пути: %s", sample_path.as_posix())
 
     def _get_sample_file_size(
                               self,
@@ -413,29 +462,6 @@ class WatchdogSource(WatchdogBasic):
                 total_size += file_size
         return total_size
 
-    # ------------------------------------------------------------------
-    # Инициализация дерева при первом запуске
-    # ------------------------------------------------------------------
-    def _process_initial_tree(
-                              self,
-                              tree:Dict[str, dict],
-                              path_parts: List[Path|str]=[]
-                             ):
-        """Рекурсивно создаёт образцы для всех sample-папок."""
-        current_depth = len(path_parts)
-        self.logger.debug('Processing initial tree, depth: %d', current_depth)
-        for d, d_content in tree.items():
-            new_path_parts = path_parts + [d]
-            if current_depth == self.sample_depth:
-                sample_path = self.source_folder.joinpath(*new_path_parts)
-                self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
-                # Пробуем создать образец
-                self._create_sample(sample_path, d_content)
-                # Глубже спускаться нет смысла - образцы там не ждём
-            else:
-                self._process_initial_tree(d_content, new_path_parts)
-        return None
-    
     # ------------------------------------------------------------------
     # Действия при экстренной остановке
     # ------------------------------------------------------------------
