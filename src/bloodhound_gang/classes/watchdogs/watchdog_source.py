@@ -432,8 +432,8 @@ class WatchdogSource(WatchdogBasic):
                 # Пробуем создать образец
                 self._create_sample(sample_path, d_content)
                 # Глубже спускаться нет смысла - образцы там не ждём
-                return None
-            self._process_initial_tree(d_content, new_path_parts)
+            else:
+                self._process_initial_tree(d_content, new_path_parts)
         return None
     
     # ------------------------------------------------------------------
