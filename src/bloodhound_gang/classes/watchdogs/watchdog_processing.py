@@ -208,7 +208,11 @@ class WatchdogProcessing(WatchdogBasic):
         if yml_changed:
             self.tasks.clear()
             # создаём объекты Task
-            task_list:List[Dict[str, Any]] = next(iter(data.values()), [])
+            task_list:list[dict] = []
+            try:
+                task_list = next(iter(data.values()), [])
+            except Exception:
+                pass
             for task_data in task_list:
                 try:
                     # Закидываем конфиг Nextflow, общий для всех заданий

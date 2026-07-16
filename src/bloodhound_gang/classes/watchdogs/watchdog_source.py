@@ -426,7 +426,6 @@ class WatchdogSource(WatchdogBasic):
         self.logger.debug('Processing initial tree, depth: %d', current_depth)
         for d, d_content in tree.items():
             new_path_parts = path_parts + [d]
-            self.logger.debug('path_parts:%r, new_path_parts:%r, d:%s', path_parts, new_path_parts, d)
             if current_depth == self.sample_depth:
                 sample_path = self.source_folder.joinpath(*new_path_parts)
                 self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
