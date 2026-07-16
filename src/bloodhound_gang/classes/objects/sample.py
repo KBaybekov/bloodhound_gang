@@ -274,7 +274,7 @@ class Sample(BaseModel):
             val = doc.get(attr, None)
             if val is not None and isinstance(val, str):
                 doc[attr] = Path(val).resolve()
-        return Sample(**doc)
+        return Sample.model_validate(doc, context={'from_db': True})
     
     def to_db(
               self
@@ -289,6 +289,8 @@ class Sample(BaseModel):
     @field_validator('source_d')
     @classmethod
     def validate_source_path(cls, v: Path, info: ValidationInfo) -> Path:
+        if info.context and info.context.get('from_db'):
+            return v
         sample_id = info.data.get('sample_id', 'unknown')
         # Проверка существования директории
         if not v.exists():
