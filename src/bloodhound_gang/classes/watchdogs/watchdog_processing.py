@@ -208,7 +208,7 @@ class WatchdogProcessing(WatchdogBasic):
         if yml_changed:
             self.tasks.clear()
             # создаём объекты Task
-            task_list:List[Dict[str, Any]] = next(iter(data.values()))
+            task_list:List[Dict[str, Any]] = next(iter(data.values()), [])
             for task_data in task_list:
                 try:
                     # Закидываем конфиг Nextflow, общий для всех заданий
@@ -636,7 +636,7 @@ class WatchdogProcessing(WatchdogBasic):
         cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
             self.queues.clear()
-            queue_datas = next(iter(data.values()))
+            queue_datas = next(iter(data.values()), [])
             for queue_data in queue_datas:
                 if queue_data:
                     try:
@@ -720,7 +720,7 @@ class WatchdogProcessing(WatchdogBasic):
         """
         cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
-            hosts_datas = next(iter(data.values()))
+            hosts_datas = next(iter(data.values()), [])
             for host_data in  hosts_datas:
                 if host_data:
                     try:
@@ -805,38 +805,41 @@ class WatchdogProcessing(WatchdogBasic):
             if yaml is not None:
                 cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
                 if cfg_changed and data:
-                    command_datas:list[dict] = next(iter(data.values()))
-                    self.logger.debug("Processing %d user commands", len(command_datas))
-                    for command_data in command_datas:
-                        command_type = command_data.get('type')
-                        commands:list[dict] = command_data.get('commands', [])
-                        for command in commands:
-                            command_prorepties = {
-                                                'process_id': command.get('process_id', None),
-                                                'host': command.get('host', None),
-                                                'queue': command.get('queue', None),
-                                                'task_id': command.get('task_id', None),
-                                                'sample_id': command.get('sample_id', None)
-                                                }
-                            for prop_name, prop in command_prorepties.items():
-                                if prop is not None:
-                                    command_prorepties[prop_name] = prop.split('; ')
-                            match command_type:
-                                case 'stop':
-                                    # добавляем обязательное условие для поиска процесса - он должен быть запущен
-                                    command_prorepties.update({'status': list(PROCESS_STATUSES_RUNNING)})
-                                    # БД не запрашиваем - запущенные процессы должны быть уже загружены
-                                    stop_these_processes = await self._get_processes(
-                                                                               filters=command_prorepties,
-                                                                               request_db=False
-                                                                              )
-                                    if stop_these_processes:
-                                        self.logger.debug("Stopping processes by user command: %s", ', '.join(stop_these_processes))
-                                        await self.stop_processes(
-                                                                  stop_these_processes,
-                                                                  reason='by_user'
-                                                                 )
-                    self.logger.debug('All commands processed.')
+                    command_datas:list[dict] = next(iter(data.values()), [])
+                    if command_datas:
+                        self.logger.debug("Processing %d user commands", len(command_datas))
+                        for command_data in command_datas:
+                            command_type = command_data.get('type')
+                            commands:list[dict] = command_data.get('commands', [])
+                            for command in commands:
+                                command_prorepties = {
+                                                    'process_id': command.get('process_id', None),
+                                                    'host': command.get('host', None),
+                                                    'queue': command.get('queue', None),
+                                                    'task_id': command.get('task_id', None),
+                                                    'sample_id': command.get('sample_id', None)
+                                                    }
+                                for prop_name, prop in command_prorepties.items():
+                                    if prop is not None:
+                                        command_prorepties[prop_name] = prop.split('; ')
+                                match command_type:
+                                    case 'stop':
+                                        # добавляем обязательное условие для поиска процесса - он должен быть запущен
+                                        command_prorepties.update({'status': list(PROCESS_STATUSES_RUNNING)})
+                                        # БД не запрашиваем - запущенные процессы должны быть уже загружены
+                                        stop_these_processes = await self._get_processes(
+                                                                                filters=command_prorepties,
+                                                                                request_db=False
+                                                                                )
+                                        if stop_these_processes:
+                                            self.logger.debug("Stopping processes by user command: %s", ', '.join(stop_these_processes))
+                                            await self.stop_processes(
+                                                                    stop_these_processes,
+                                                                    reason='by_user'
+                                                                    )
+                        self.logger.debug('All commands processed.')
+                    else:
+                        self.logger.debug('No commands found.')
             return None
 
         check_interval = 5
