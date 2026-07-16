@@ -81,13 +81,15 @@ class WatchdogSource(WatchdogBasic):
         """
         Загрузка прединдексированных данных из базы данных
         """
+        docs = await self.dao.find(
+                                   collection=self.db_collection_samples,
+                                   query={},
+                                   projection={'source_d':1}
+                                  )
+        
         self._sample_ds_DB = set(
-                                Path(next(iter(v.values())))
-                                for v in await self.dao.find(
-                                                        collection=self.db_collection_samples,
-                                                        query={},
-                                                        projection={'source_d':1}
-                                                    )
+                                 Path(doc['source_d']) for doc in docs
+                                 if 'source_d' in doc
                                 )
         self.samples_count = len(self._sample_ds_DB)
         old_tree = await self._load_tree()

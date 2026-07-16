@@ -389,12 +389,13 @@ class WatchdogProcessing(WatchdogBasic):
         Проверяет перед формированием, что процесс не был сформирован ранее
         """
         db_stored_processes:Set[str] = set(
-                                           next(iter(doc.values()))
+                                           doc['process_id']
                                            for doc in await self.dao.find(
                                                                     collection=self.db_collection_processes,
                                                                     query={},
                                                                     projection={'process_id':1}
                                                                    )
+                                           if 'process_id' in doc
                                           )
         new_count = 0
         for task_id, samples in self.task_ready_samples.items():
