@@ -13,8 +13,7 @@ from constants import (
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
                        MAIN_DS,
-                       MIN_STABLE_TIME,
-                       SOURCE_DS_NAMES
+                       MIN_STABLE_TIME
                       )
 from modules.db_async import ConfigurableMongoDAO
 from modules.utils import obj_size_in_Gb

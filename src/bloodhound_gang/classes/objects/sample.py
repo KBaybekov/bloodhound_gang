@@ -268,7 +268,7 @@ class Sample(BaseModel):
         """
         doc['processes'] = ProcessData(**doc['processes'])
         doc['data'] = SampleData(**doc['data'])
-        doc['batches'] = {k:Batch(**v) for k,v in doc['batches']}
+        doc['batches'] = {k:Batch(**v) for k,v in doc['batches'].items()}
 
         for attr in ['work_d', 'res_d', 'source_d']:
             val = doc.get(attr, None)
