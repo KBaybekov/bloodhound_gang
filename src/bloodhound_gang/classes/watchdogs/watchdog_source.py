@@ -312,11 +312,15 @@ class WatchdogSource(WatchdogBasic):
                     # Если это sample_level - надо попробовать создать Sample
                     if depth == self.sample_depth - 1 or depth == self.sample_depth:
                         self.logger.debug("New sample directory discovered: %s", (base_path / d).as_posix())
-                        await self._create_sample(
-                                            sample_path=d_path,
-                                            batch_data=new_dict[d],
-                                            is_it_Sample_check=True
-                                           )
+                        restored = await self._create_sample(
+                                                             sample_path=d_path,
+                                                             batch_data=new_dict[d],
+                                                             is_it_Sample_check=True
+                                                            )
+                        if restored:
+                            del new_dict[d]
+                            continue
+
             if removed_folders:
                 self.logger.debug("Removed folders: %s", removed_folders)
                 for d in removed_folders:
@@ -408,7 +412,7 @@ class WatchdogSource(WatchdogBasic):
                              sample_path: Path,
                              batch_data:Dict[str, Dict[str, float]],
                              is_it_Sample_check:bool=False
-                            ):
+                            ) -> bool:
         """
         Создаёт новый объект Sample и в случае успеха при создании сохраняет его в соответствующую коллекцию в БД.
         """
@@ -421,7 +425,8 @@ class WatchdogSource(WatchdogBasic):
                                                 batch_data=batch_data,
                                                 restored=True
                                                 )
-            return None
+                return True
+            return False
         try:
             sample_size = self._get_sample_file_size(batch_data)
             try:
@@ -440,11 +445,14 @@ class WatchdogSource(WatchdogBasic):
                     self.logger.debug('Not Sample path: %s', sample_path.as_posix())
                 else:
                     self.logger.exception("Failed to create Sample for %s", sample_path.as_posix())
+                    return False
             else:
                 self.samples_to_DB.append(sample.to_db())
                 self.logger.debug("New Sample (%s) created, path: %s", sample.sample_id, sample_path.as_posix())
+                return True
         except Exception:
             self.logger.exception("Fail during creating sample for %s", sample_path.as_posix())
+        return False
 
     async def _mark_sample_changed(
                              self,
