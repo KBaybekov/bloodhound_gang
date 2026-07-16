@@ -320,7 +320,7 @@ class WatchdogSource(WatchdogBasic):
                 for d in removed_folders:
                     d_path = base_path / d
                     # Удалён целый sample – помечаем образец
-                    if depth == self.sample_depth - 1:
+                    if depth == self.sample_depth - 1 or depth == self.sample_depth:
                         self.logger.debug("Sample directory removed: %s", d_path.as_posix())
                         await self._mark_sample_changed(d_path, deleted=True)
             
