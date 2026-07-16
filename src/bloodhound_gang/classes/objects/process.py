@@ -466,12 +466,12 @@ class Process(BaseModel):
                 else:
                     logger.error("Process '%s'. Log dir doesn't exist: %s", self.process_id, self.log_d.as_posix())
 
-        def capture_software_versions() -> None:
+        async def capture_software_versions() -> None:
             """
             Парсит software_versions.yml 
             """
             if self.software_list_f is not None:
-                self.software_versions = load_yaml(self.software_list_f)
+                self.software_versions = await load_yaml(self.software_list_f)
             return None
 
         try:
@@ -482,7 +482,7 @@ class Process(BaseModel):
                 # Ищем логи
                 capture_log_files()
                 # Собираем статистику
-                capture_software_versions()
+                await capture_software_versions()
                 # Получаем специфичную для задания информацию и отметку, успешно ли завершён процесс (exitcode=0 не показатель)
                 if self.result_factory_func is not None:
                     is_processing_ok, self._result = self.result_factory_func(self)

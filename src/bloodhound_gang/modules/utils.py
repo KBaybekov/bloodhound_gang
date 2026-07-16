@@ -1,3 +1,4 @@
+import aiofiles
 import asyncio
 import csv
 import jinja2
@@ -75,7 +76,7 @@ def obj_size_in_Gb(
             return round((size / 1024 ** 3), precision)
     else:
         raise ValueError("Объект или размер не указаны")
-
+'''
 def load_yaml(
               file_path:Path,
               encoding:str = "utf-8",
@@ -113,6 +114,74 @@ def load_yaml(
         loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
         with file_path.open(encoding=encoding, mode='r') as file:
             data = yaml.load(file, Loader=loader)
+        if subsection:
+            try:
+                data = data[subsection]
+            except KeyError:
+                logger.exception("Раздел '%s' не найден в %s", subsection, file_path.as_posix())
+                if critical:
+                    raise KeyError
+    except UnicodeDecodeError:
+        logger.exception("Ошибка кодировки файла. Проверьте кодировку: %s", file_path.as_posix())
+        if critical:
+            raise UnicodeDecodeError # type: ignore
+    except yaml.YAMLError:
+        logger.exception("Ошибка парсинга YAML файла: %s", file_path.as_posix())
+        if critical:
+            raise yaml.YAMLError
+    except FileNotFoundError:
+        logger.exception("Файл не найден: %s", file_path.as_posix())
+        if critical:
+            raise FileNotFoundError
+    except Exception as e:
+        logger.exception("Ошибка при открытии YAML файла: %s", file_path.as_posix())
+        if critical:
+            logger.critical("Фатальная ошибка при парсинге YAML: %s", file_path.as_posix(), exc_info=True)
+            raise e
+    if data:
+        logger.debug("Загружены данные из YAML: %s", file_path.as_posix())
+    else:
+        logger.debug("Пустой словарь из YAML: %s", file_path.as_posix())
+    return data
+'''
+async def load_yaml(
+              file_path:Path,
+              encoding:str = "utf-8",
+              critical:bool = False,
+              subsection:str = ''
+             ) -> dict:
+    """
+    Загружает данные из YAML-файла в виде словаря.
+
+    Безопасно парсит YAML с использованием safe_load. Поддерживает загрузку
+    всего файла или конкретной секции. Обрабатывает все возможные ошибки
+    (кодировка, синтаксис, отсутствие файла) и ведёт логирование.
+
+    :param file_path: Путь к YAML-файлу, который необходимо загрузить.
+    :type file_path: Path
+    :param encoding: Кодировка файла. По умолчанию — 'utf-8'.
+    :type encoding: str
+    :param critical: Если True — при ошибке будет поднято исключение.
+                     Если False — функция вернёт пустой словарь.
+    :type critical: bool
+    :param subsection: Имя секции в YAML, которую нужно загрузить. Если не указано,
+                       возвращается весь документ.
+    :type subsection: str
+    :return: Словарь с загруженными данными. Может быть пустым.
+    :rtype: dict
+    :raises FileNotFoundError: Если critical=True и файл не найден.
+    :raises UnicodeDecodeError: Если critical=True и ошибка кодировки.
+    :raises YAMLError: Если critical=True и ошибка синтаксиса YAML.
+    :raises KeyError: Если critical=True и указанная секция не найдена.
+    """
+
+    data: dict = {}
+    # Открываем YAML-файл для чтения
+    try:
+        loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
+        async with  aiofiles.open(file_path, encoding=encoding, mode='r') as file:
+            content = await file.read()
+        data = yaml.load(content, Loader=loader)
         if subsection:
             try:
                 data = data[subsection]
@@ -544,7 +613,7 @@ async def check_important_file_objs(
             case _:
                 if obj.suffix == '.yaml':
                     try:
-                        load_yaml(file_path=obj, critical=True)
+                        await load_yaml(file_path=obj, critical=True)
                     except Exception:
                         logger.exception("YAML is not consistent: %s", obj.as_posix())
                         raise

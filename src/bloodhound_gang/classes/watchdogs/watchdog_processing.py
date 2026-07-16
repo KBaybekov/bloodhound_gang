@@ -177,7 +177,7 @@ class WatchdogProcessing(WatchdogBasic):
         загружает образцы из БД и формирует очереди для обработчиков заданий
         """
         # Загружаем конфиги из YAML
-        self._load_configs()
+        await self._load_configs()
         # Проводим поиск образцов в БД, соответствующих критериям Tasks
         await self._get_task_ready_samples()
         # Формируем пул экземпляров Process для запуска/отслеживания
@@ -197,14 +197,14 @@ class WatchdogProcessing(WatchdogBasic):
     # ------------------------------------------------------------------
     # Работа с объектами Task
     # ------------------------------------------------------------------
-    def _load_tasks(
+    async def _load_tasks(
                     self,
                     yaml:Path
                    ) -> None:
         """
         Загружает задания YAML.
         """
-        yml_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
+        yml_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
         if yml_changed:
             self.tasks.clear()
             # создаём объекты Task
@@ -627,14 +627,14 @@ class WatchdogProcessing(WatchdogBasic):
                         if sample is not None:
                             sample.store_process_status(proc)
 
-    def _load_queues(
+    async def _load_queues(
                      self,
                      yaml:Path
                     ) -> None:
         """
         Загружает очереди из YAML.
         """
-        cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
+        cfg_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
             self.queues.clear()
             queue_datas:list[dict] = []
@@ -701,7 +701,7 @@ class WatchdogProcessing(WatchdogBasic):
         finally:
             return sample
 
-    def _load_configs(
+    async def _load_configs(
                       self
                      ) -> None:
         """
@@ -710,20 +710,20 @@ class WatchdogProcessing(WatchdogBasic):
         for attr, cfg in self.cfgs.items():
             match attr:
                 case 'tasks':
-                    self._load_tasks(yaml=cfg)
+                    await self._load_tasks(yaml=cfg)
                 case 'queues':
-                    self._load_queues(yaml=cfg)
+                    await self._load_queues(yaml=cfg)
                 case 'hosts':
-                    self._load_hosts(yaml=cfg)
+                    await self._load_hosts(yaml=cfg)
                 
-    def _load_hosts(
+    async def _load_hosts(
                      self,
                      yaml:Path
                     ) -> None:
         """
         Загружает хосты из YAML.
         """
-        cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
+        cfg_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
             hosts_datas = []
             try:
@@ -740,7 +740,7 @@ class WatchdogProcessing(WatchdogBasic):
             self.logger.debug("Loaded %d hosts from config: %s", len(self.hosts.keys()), [h.name for h in self.hosts.values()])
         return None
 
-    def load_cfg_yaml_if_it_changed(
+    async def load_cfg_yaml_if_it_changed(
                                     self,
                                     cfg:Path
                                    ) -> tuple[bool, dict]:
@@ -756,7 +756,7 @@ class WatchdogProcessing(WatchdogBasic):
         yaml_changed = file_mtime_changed(cfg, old_cfg_mtime)
         if yaml_changed:
             cfg_mtime = cfg.stat().st_mtime
-            data = load_yaml(
+            data = await load_yaml(
                              file_path=cfg,
                              critical=True
                             )
@@ -812,7 +812,7 @@ class WatchdogProcessing(WatchdogBasic):
         async def load_and_run_commands() -> None:
             yaml = self.cfgs.get('user_commands')
             if yaml is not None:
-                cfg_changed, data = self.load_cfg_yaml_if_it_changed(yaml)
+                cfg_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
                 if cfg_changed and data:
                     command_datas:list[dict] = []
                     try:
