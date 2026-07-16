@@ -4,7 +4,7 @@ from typing import Dict, List
 import time
 import asyncio
 from pathlib import Path
-from pydantic import ConfigDict
+from pydantic import ConfigDict, ValidationError
 
 from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.objects.sample import Sample
@@ -220,7 +220,11 @@ class WatchdogSource(WatchdogBasic):
                 sample_path = self.source_folder.joinpath(*new_path_parts)
                 self.logger.debug('Potential Sample directory: %s', sample_path.as_posix())
                 # Пробуем создать образец
-                self._create_sample(sample_path, d_content)
+                self._create_sample(
+                                    sample_path=sample_path,
+                                    batch_data=d_content,
+                                    is_it_Sample_check=True
+                                   )
                 # Глубже спускаться нет смысла - образцы там не ждём
             else:
                 self._process_initial_tree(d_content, new_path_parts)
@@ -245,7 +249,8 @@ class WatchdogSource(WatchdogBasic):
 
         self.logger.debug("depth=%d, base_path=%s", depth, base_path.as_posix())
 
-        if depth == self.sample_depth:
+        #if depth == self.sample_depth:
+        if depth == self.batch_depth:
             # old и new – {batch:{file:size}}
             # проверяем, изменился ли общий размер файлов
             old_files_size = self._get_sample_file_size(batch_data=old)
@@ -276,6 +281,7 @@ class WatchdogSource(WatchdogBasic):
             
             batch_set_changed = any([new_batches, removed_batches])
             if batch_set_changed:
+                # base_path здесь — это путь к образцу (родитель батчей)
                 self.logger.debug(
                                   "Batch set changed for sample %s: new=%s, removed=%s",
                                   base_path.name, new_batches, removed_batches
@@ -283,7 +289,7 @@ class WatchdogSource(WatchdogBasic):
                 await self._mark_sample_changed(base_path, change_msg)
                 changed = True
 
-        else:
+        else: # уровни group, subgroup, sample
             # old и new – словари папок
             old_dict = old if isinstance(old, dict) else {}
             new_dict = new if isinstance(new, dict) else {}
@@ -307,8 +313,9 @@ class WatchdogSource(WatchdogBasic):
                         self.logger.debug("New sample directory discovered: %s", (base_path / d).as_posix())
                         self._create_sample(
                                             sample_path=d_path,
-                                            batch_data=new_dict[d]
-                                        )
+                                            batch_data=new_dict[d],
+                                            is_it_Sample_check=True
+                                           )
             if removed_folders:
                 self.logger.debug("Removed folders: %s", removed_folders)
                 for d in removed_folders:
@@ -328,11 +335,11 @@ class WatchdogSource(WatchdogBasic):
                 # сравнивать новую папку не с чем, создаем муляж
                 old_tree = old_dict.get(d, {})
                 child_changed = await self._compare_and_process_tree(
-                                                               old=old_tree,
-                                                               new=new_tree,
-                                                               base_path=d_path,
-                                                               depth=depth + 1
-                                                              )
+                                                                     old=old_tree,
+                                                                     new=new_tree,
+                                                                     base_path=d_path,
+                                                                     depth=depth + 1
+                                                                    )
                 changed = changed or child_changed
 
         self.logger.debug("After checking tree: changed=%s for base_path=%s", changed, base_path.as_posix())
@@ -392,7 +399,8 @@ class WatchdogSource(WatchdogBasic):
     def _create_sample(
                        self,
                        sample_path: Path,
-                       batch_data:Dict[str, Dict[str, float]]
+                       batch_data:Dict[str, Dict[str, float]],
+                       is_it_Sample_check:bool=False
                       ):
         """
         Создаёт новый объект Sample и в случае успеха при создании сохраняет его в соответствующую коллекцию в БД.
@@ -401,19 +409,27 @@ class WatchdogSource(WatchdogBasic):
             return None
         try:
             sample_size = self._get_sample_file_size(batch_data)
-            sample = Sample.model_validate(
-                                        obj={'source_d':sample_path},
-                                        context={
-                                                 'batch_data':batch_data,
-                                                 'sample_size':sample_size,
-                                                 'main_work_d':self.work_folder,
-                                                 'main_res_d':self.res_folder
-                                                }
-                                        )
-            self.samples_to_DB.append(sample.to_db())
-            self.logger.debug("New Sample (%s) created, path: %s", sample.sample_id, sample_path.as_posix())
+            try:
+                sample = Sample.model_validate(
+                                            obj={'source_d':sample_path},
+                                            context={
+                                                    'batch_data':batch_data,
+                                                    'sample_size':sample_size,
+                                                    'main_work_d':self.work_folder,
+                                                    'main_res_d':self.res_folder
+                                                    }
+                                            )
+            except ValidationError:
+                # Мы просто проверяем, является ли найденный объект образцом
+                if is_it_Sample_check:
+                    self.logger.debug('Not Sample path: %s', sample_path.as_posix())
+                else:
+                    self.logger.exception("Failed to create Sample for %s", sample_path.as_posix())
+            else:
+                self.samples_to_DB.append(sample.to_db())
+                self.logger.debug("New Sample (%s) created, path: %s", sample.sample_id, sample_path.as_posix())
         except Exception:
-            self.logger.exception("Failed to create sample for %s", sample_path.as_posix())
+            self.logger.exception("Fail during creating sample for %s", sample_path.as_posix())
 
     async def _mark_sample_changed(
                              self,
