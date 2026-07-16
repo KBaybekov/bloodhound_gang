@@ -143,7 +143,7 @@ class WatchdogSource(WatchdogBasic):
             # Сравниваем и обрабатываем изменения, new_tree мутирует
             self.logger.info('Произведено повторное сканирование для %s', self.source_folder.as_posix())
             changed = await self._compare_and_process_tree(
-                                                    old=old_tree['tree'],
+                                                    old=old_tree,
                                                     new=new_tree['tree'],
                                                     base_path=self.source_folder,
                                                     depth=0
