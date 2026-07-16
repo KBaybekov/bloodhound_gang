@@ -390,7 +390,7 @@ class WatchdogSource(WatchdogBasic):
         """
         # Защита неизменяемых полей при обновлении существующих документов
         for doc in self.samples_to_DB:
-            if '_id' in doc:
+            if doc.get('created_at_DB'):
                 doc.pop('work_d', None)
                 doc.pop('res_d', None)
                 doc.pop('source_d', None)  # source_d тоже не должен меняться
