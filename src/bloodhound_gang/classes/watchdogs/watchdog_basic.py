@@ -50,6 +50,11 @@ class WatchdogBasic(BaseModel):
         logger = get_logger(f"watchdog.{self.name}")
         return logger
 
+    @property
+    def request_env_variable(self) -> Callable[[str], str]:
+        """Возвращает функцию для получения переменных окружения с динамической перезагрузкой .env."""
+        return request_env_variable
+
     async def start(self):
         """Запустить вотчдог в асинхронном потоке."""
         if self._task and not self._task.done():
@@ -77,7 +82,7 @@ class WatchdogBasic(BaseModel):
                 self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
                 
                 # Обновляем интервал проверки для вотчдога
-                self.check_interval = float(request_env_variable(self.interval_env_variable))
+                self.check_interval = float(self.request_env_variable(self.interval_env_variable))
                 await asyncio.sleep(max([(self.check_interval - self.watch_loop_duration), 5]))
             except asyncio.CancelledError:
                 self.logger.info(f"[{self.name}] Задача отменена")

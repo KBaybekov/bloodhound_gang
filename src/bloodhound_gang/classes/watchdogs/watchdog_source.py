@@ -12,8 +12,7 @@ from constants import (
                        DATA_GROUPS_FOR_WATCHING,
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
-                       MAIN_DS,
-                       MIN_STABLE_TIME
+                       MAIN_DS
                       )
 from modules.db_async import ConfigurableMongoDAO
 from modules.utils import obj_size_in_Gb
@@ -48,7 +47,6 @@ class WatchdogSource(WatchdogBasic):
         self.res_folder = MAIN_DS['res_d']
         self.db_collection_file_trees = DB_COLLECTION_TREES
         self.db_collection_samples = DB_COLLECTION_SAMPLES
-        self.min_stable_time = MIN_STABLE_TIME
         self._sample_ds_DB: Dict[Path, bool] = {}
         self.samples_to_DB: List[dict] = []
         # sample - на глубине 2
@@ -64,6 +62,8 @@ class WatchdogSource(WatchdogBasic):
     # Главный метод наблюдения (вызывается в цикле)
     # ------------------------------------------------------------------
     async def watch(self):
+        # Минимальное время стабильности файлового объекта
+        self.min_stable_time = float(self.request_env_variable('MIN_STABLE_TIME_H')) * 60 * 60
         # Загружаем из БД пути ранее индексированных папок образцов
         old_tree = await self.load_preindexed_from_db()
         # Сканируем текущую файловую систему без фильтрации

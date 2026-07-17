@@ -12,7 +12,7 @@ def request_env_variable(
     """
     Загружает .env-файл и возвращает значение запрошенной переменной 
     """
-    load_dotenv()
+    load_dotenv(override=True)
     return os.environ[variable_name]
 
 def parse_str_for_variables_names(
@@ -50,7 +50,6 @@ PASS_SOURCE_DS_NAMES = {'fast5_pass', 'pod5', 'pod5_pass'}
 BASECALL_DS_NAMES = {'fastq_pass', 'fastq_fail'}
 PASS_BASECALL_DS_NAMES = {'fastq', 'fastq_pass'}
 
-MIN_STABLE_TIME = float(os.environ['MIN_STABLE_TIME_H']) * 60 * 60
 SOURCE_EXTENSIONS = {".fast5", ".pod5"}
 KNOWN_FILE_TYPES = {'txt', 'fq', 'fastq', 'ubam', 'bam', 'cram', 'vcf', 'gvcf'}
 
