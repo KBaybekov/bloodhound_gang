@@ -50,7 +50,7 @@ class Process(BaseModel):
     model_config = ConfigDict(
                               str_strip_whitespace=True,
                               extra='allow',
-                              validate_assignment=True,
+                              validate_assignment=False,
                               arbitrary_types_allowed=True
                              )
 
