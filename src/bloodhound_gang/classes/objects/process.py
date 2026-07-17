@@ -287,8 +287,8 @@ class Process(BaseModel):
         task_id, task_name, task_version, sample_id, tags = decode_process_id(process_id)
         
         process_data.update({
-                             'res_d': sample.res_d.joinpath(task_name, *tags, task_version),
-                             'work_d': sample.work_d.joinpath(task_name, *tags, task_version),
+                             'res_d': sample.res_d.joinpath(task_name, *tags, task_version).resolve(),
+                             'work_d': sample.work_d.joinpath(task_name, *tags, task_version).resolve(),
                              'priority': any([sample.priority, task.priority]),
                              'env': task.environment_variables,
                              'queue': task.queue,
@@ -328,7 +328,7 @@ class Process(BaseModel):
                      'software_list_f']:
             val = doc.get(attr, None)
             if val is not None and isinstance(val, str):
-                doc[attr] = Path(val).resolve()
+                doc[attr] = Path(val)
         return Process(**doc)
     
     def to_db(

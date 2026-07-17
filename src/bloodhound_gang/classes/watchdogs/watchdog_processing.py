@@ -216,7 +216,7 @@ class WatchdogProcessing(WatchdogBasic):
             for task_data in task_list:
                 try:
                     # Закидываем конфиг Nextflow, общий для всех заданий
-                    task_data.update({'_nxf_cfg_organisation':self._nxf_cfg_organisation})
+                    task_data.update({'nxf_cfg_organisation':self._nxf_cfg_organisation})
                     task = Task.from_source(task_data)
                 except ValueError:
                     # эту ошибку обработали в task.py

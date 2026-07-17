@@ -56,7 +56,7 @@ KNOWN_FILE_TYPES = {'txt', 'fq', 'fastq', 'ubam', 'bam', 'cram', 'vcf', 'gvcf'}
 PORES = {'unknown', 'r941', 'r1041', 'rp4'}
 # Разделители при именовании файлов
 TASK_DELIMITER = ':'
-DELIMITER = '-'
+DELIMITER = '__'
 
 DEFAULT_BASECALL_MODELS = {
                            'r941': 'dna_r9.4.1_e8_hac@v3.3',
