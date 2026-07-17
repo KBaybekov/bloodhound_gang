@@ -220,8 +220,10 @@ class Sample(BaseModel):
         # Создаём экземпляры батчей и исходных данных в них на основе переданного в контексте словаря {batch:{file(dir):size(.6)}}
         if isinstance(__context, dict):
             self.source_d_size_GB = round((__context.get('sample_size', 0.0)), 2)
-            self.work_d = __context.get('main_work_d', Path()) / self.group / self.subgroup / self.sample_id
-            self.res_d = __context.get('main_res_d', Path()) / self.group / self.subgroup / self.sample_id
+            if self.work_d == Path():
+                self.work_d = __context.get('main_work_d', Path()) / self.group / self.subgroup / self.sample_id
+            if self.res_d == Path():
+                self.res_d = __context.get('main_res_d', Path()) / self.group / self.subgroup / self.sample_id
 
             batch_data: Dict[str, Dict[str, float]]|None =  __context.get('batch_data', None)
             if batch_data is not None:
