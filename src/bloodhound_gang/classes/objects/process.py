@@ -52,7 +52,6 @@ class Process(BaseModel):
                               extra='allow',
                               validate_assignment=True,
                               arbitrary_types_allowed=True
-                              #protected_namespaces=()
                              )
 
     # IDS
@@ -74,7 +73,8 @@ class Process(BaseModel):
                           )
     sample_db_id: ObjectId = Field(
                                ...,
-                               description="Уникальный идентификатор записи образца в БД"
+                               description="Уникальный идентификатор записи образца в БД",
+                               frozen=True
                               )
     task_id: str = Field(
                          default='UNDEFINED',
@@ -195,18 +195,15 @@ class Process(BaseModel):
                               )
     exitcode_f: Path = Field(
                                   default=Path('/dev/null'),
-                                  description="Файл с кодом завершения",
-                                  frozen=True
+                                  description="Файл с кодом завершения"
                                  )
     stdout_f: Path = Field(
                                 default=Path('/dev/null'),
-                                description="Файл с stdout",
-                                frozen=True
+                                description="Файл с stdout"
                                )
     stderr_f: Path = Field(
                                 default=Path('/dev/null'),
-                                description="Файл с stdout",
-                                frozen=True
+                                description="Файл с stdout"
                                )
     # RESULT
     res_d: Path = Field(
@@ -221,14 +218,13 @@ class Process(BaseModel):
     _result_factory_func: Callable[['Process'], tuple[bool, ResultUnion|None]]|None = PrivateAttr(default=None)
     # Данные, полученные в результате обработки
     _result: ResultUnion|None = PrivateAttr(
-                                      default=None,
+                                      default=None
                                      )
 
     #log_d
     log_d: Path = Field(
                              default=Path('/dev/null'),
-                             description="Папка с логами",
-                             frozen=True
+                             description="Папка с логами"
                             )
     log_f: Path = Field(
                         default=Path('/dev/null'),

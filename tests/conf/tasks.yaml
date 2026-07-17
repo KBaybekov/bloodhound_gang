@@ -1,19 +1,18 @@
 tasks:
-- name: 'basecalling_basic'
-  applicable_samples: 'no'
-  version: '1107267993'
-  description: 'Базовый бейсколлинг, осуществляемый без модификаций'
-  db_query: '{ "$expr": { "$gt": [ { "$size": { "$setDifference": [ "$source.s_id",
-    "$res.s_id" ] } }, 0 ] } }'
-  pipeline: 'nxf-csp/ont-basecalling'
-  environment_variables: {}
-  queue: 'gpu'
-  load:
-    cpus: 32
-    ram: 128
-    gpus: 1
-  timeout: '1D'
-  priority: true
-  nxf_cfg_pipeline: 'basecalling_basic/nxf_basecalling.config'
-  process_factory: 'basecalling_basic/process_factory.py'
-  result_factory: 'basecalling_basic/result_factory.py'
+  - name: test_task
+    version: "010122abcd"
+    description: "Тестовая задача"
+    db_query: '{"group": "DNA"}'
+    applicable_samples: null          # все подходящие
+    pipeline: "echo"
+    environment_variables: {}
+    queue: cpu
+    load:
+      cpus: 0
+      ram: 0
+      gpus: 0
+    timeout: "60s"
+    priority: false
+    nxf_cfg_pipeline: null
+    process_factory: tasks/basecalling_basic/process_factory.py
+    result_factory: tasks/basecalling_basic/result_factory.py

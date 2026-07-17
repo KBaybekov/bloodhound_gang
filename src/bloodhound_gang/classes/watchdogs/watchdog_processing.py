@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Set
+from typing import Dict, List, Literal, Set
 
 import asyncio
 from bson import ObjectId
@@ -223,6 +223,7 @@ class WatchdogProcessing(WatchdogBasic):
                     pass
                 except Exception:
                     self.logger.exception("Не удалось создать объект Task. Данные:\n%s", task_data)
+                    self._cfgs_mtime.pop(yaml, None)
                 else:
                     self.tasks.update({task.task_id: task})
 
@@ -672,6 +673,7 @@ class WatchdogProcessing(WatchdogBasic):
                             self.queues.update({queue_name:queue})
                     except Exception:
                         self.logger.error("Ошибка при создании объекта Queue. Данные:\n%s", queue_data)
+                        self._cfgs_mtime.pop(yaml, None)
             self.logger.debug("Loaded %d queues from config: %s", len(self.queues), self.queues.keys())
         return None
 
@@ -741,6 +743,7 @@ class WatchdogProcessing(WatchdogBasic):
                         self.hosts.update({host.name:host})
                     except Exception as e:
                         self.logger.error(f"Error during creating Host obj: {e}\nData:\n\t{host_data}")
+                        self._cfgs_mtime.pop(yaml, None)
             self.logger.debug("Loaded %d hosts from config: %s", len(self.hosts.keys()), [h.name for h in self.hosts.values()])
         return None
 
