@@ -274,6 +274,8 @@ class Sample(BaseModel):
             val = doc.get(attr, None)
             if val is not None and isinstance(val, str):
                 doc[attr] = Path(val)
+            else:
+                logger.debug("sample val %s: type %s, val='%s'", attr, type(val), val)
         return Sample.model_validate(doc, context={'from_db': True})
     
     def to_db(
