@@ -286,8 +286,6 @@ class Process(BaseModel):
         # process_id parsing
         task_id, task_name, task_version, sample_id, tags = decode_process_id(process_id)
 
-        logger.debug("Sample:\n%s", sample.to_db())
-        
         process_data.update({
                              'res_d': sample.res_d.joinpath(task_name, *tags, task_version),
                              'work_d': sample.work_d.joinpath(task_name, *tags, task_version).resolve(),

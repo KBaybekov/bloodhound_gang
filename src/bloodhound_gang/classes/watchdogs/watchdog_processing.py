@@ -611,26 +611,26 @@ class WatchdogProcessing(WatchdogBasic):
         last_started_processes = await get_last_queue_numbers()
         if last_started_processes:
             self.logger.debug('Last started processes for queues: %s', last_started_processes)
-            # Формируем списки процессов в очередях
-            for queue in self.queues.values():
-                if queue is None:
-                    continue
-                queue.last_started_process = last_started_processes.get(queue.name, {})
-                queue_unfinished_processes = set(
-                                                proc for proc in self.processes.values()
-                                                if all([
-                                                        proc.queue == queue.name,
-                                                        proc.status in PROCESS_STATUSES_UNFINISHED
-                                                        ])
-                                                )
-                if queue_unfinished_processes:
-                    await queue.group_queue_processes(proc_set=queue_unfinished_processes)
-                # сохраняем изменения статусов всех процессов очереди
-                for proc in queue_unfinished_processes:
-                    if proc._changed:
-                        sample = await self.get_sample(proc.sample_db_id)
-                        if sample is not None:
-                            sample.store_process_status(proc)
+        # Формируем списки процессов в очередях
+        for queue in self.queues.values():
+            if queue is None:
+                continue
+            queue.last_started_process = last_started_processes.get(queue.name, {})
+            queue_unfinished_processes = set(
+                                            proc for proc in self.processes.values()
+                                            if all([
+                                                    proc.queue == queue.name,
+                                                    proc.status in PROCESS_STATUSES_UNFINISHED
+                                                    ])
+                                            )
+            if queue_unfinished_processes:
+                await queue.group_queue_processes(proc_set=queue_unfinished_processes)
+            # сохраняем изменения статусов всех процессов очереди
+            for proc in queue_unfinished_processes:
+                if proc._changed:
+                    sample = await self.get_sample(proc.sample_db_id)
+                    if sample is not None:
+                        sample.store_process_status(proc)
 
     async def _load_queues(
                      self,
