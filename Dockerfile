@@ -6,13 +6,13 @@ RUN useradd --create-home --shell /bin/bash bloodhound_gang
 USER bloodhound_gang
 WORKDIR /home/bloodhound_gang
 
-# Аргумент версии, передаваемый при сборке
-ARG VERSION=unknown
-ENV APP_VERSION=$VERSION
-
 # Установка зависимостей
 COPY requirements.txt .
 RUN pip install --index-url https://pypi-mirror.gitverse.ru/simple/ --user --no-cache-dir -r requirements.txt
+
+# Аргумент версии, передаваемый при сборке
+ARG VERSION=unknown
+ENV APP_VERSION=$VERSION
 
 # Копирование исходного кода (включая conf/ и src/tasks/ по умолчанию)
 COPY \
