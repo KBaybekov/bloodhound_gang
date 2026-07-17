@@ -273,7 +273,7 @@ class Sample(BaseModel):
         for attr in ['work_d', 'res_d', 'source_d']:
             val = doc.get(attr, None)
             if val is not None and isinstance(val, str):
-                doc[attr] = Path(val).resolve()
+                doc[attr] = Path(val)
         return Sample.model_validate(doc, context={'from_db': True})
     
     def to_db(
