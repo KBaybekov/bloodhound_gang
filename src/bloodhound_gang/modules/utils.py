@@ -660,8 +660,14 @@ async def copy_file_async(
                           dest_d:Path,
                           follow_symlinks: bool = True
                          ) -> Path:
+    dest_path = dest_d / src_file.name
     try:
-        new_path = await asyncio.to_thread(shutil.copyfile, src_file, dest_d, follow_symlinks=follow_symlinks)
+        new_path = await asyncio.to_thread(
+                                           shutil.copyfile,
+                                           src_file,
+                                           dest_path,
+                                           follow_symlinks=follow_symlinks
+                                          )
     except shutil.SameFileError:
         logger.exception("Error: Source and destination are the exact same file.")
         raise
@@ -671,11 +677,11 @@ async def copy_file_async(
         raise
 
     except IsADirectoryError:
-        logger.exception("Error: The destination must include the file name, not just a directory.")
+        logger.exception("Целевой путь указывает на существующую директорию: %s", dest_path.as_posix())
         raise
 
     except PermissionError:
-        logger.exception("Error: Permission denied. Check file locks or access rights.")
+        logger.exception("Недостаточно прав для копирования %s -> %s", src_file.as_posix(), dest_path.as_posix())
         raise
 
     except shutil.SpecialFileError:
@@ -684,6 +690,9 @@ async def copy_file_async(
 
     except OSError as e:
         logger.exception(f"System error occurred: {e}")
+        raise
+    except Exception:
+        logger.exception("Непредвиденная ошибка при копировании")
         raise
     return new_path
 
