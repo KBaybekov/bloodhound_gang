@@ -374,6 +374,18 @@ class Process(BaseModel):
                    for field in self._original
                   )
 
+    # ===================================
+    # Для сохранения процессов в сеты
+    def __hash__(self):
+        return hash(self.process_id)
+
+    def __eq__(self, other):
+        if isinstance(other, Process):
+            return self.process_id == other.process_id
+        return NotImplemented
+    
+    # ===================================
+
     def _update_original(self):
         """
         Делает "снимок" объекта, с которым будет сравниваться объект при дальнейших действиях для поиска изменений
