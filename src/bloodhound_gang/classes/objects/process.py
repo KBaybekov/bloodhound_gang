@@ -581,7 +581,7 @@ class Process(BaseModel):
                                            params=self.pipeline_vars,
                                            output_path=self.params_f
                                           )
-                cmd_vars.update({'params_f':self.params_f.as_posix()})
+                cmd_vars.update({'params_file':self.params_f.as_posix()})
             else:
                 raise ValueError(f"Process {self.process_id}: Пустой словарь параметров запуска пайплайна:\n{self.pipeline_vars}")
         except Exception:
