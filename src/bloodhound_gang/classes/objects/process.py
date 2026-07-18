@@ -155,7 +155,7 @@ class Process(BaseModel):
                                description="Код завершения"
                               )
     status: str = Field(
-                        default="сreated",
+                        default="created", # PROCESS_STATUSES_CREATED
                         description="Статус процесса"
                        )
     pid_f: Path|None = Field(
