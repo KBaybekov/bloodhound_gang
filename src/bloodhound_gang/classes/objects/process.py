@@ -546,20 +546,22 @@ class Process(BaseModel):
             self.work_d.mkdir(parents=True, exist_ok=True)
             self.log_d.mkdir(parents=True, exist_ok=True)
             if self.nxf_cfg_organisation_f:
-                self.nxf_cfg_organisation_f = await copy_file_async(
-                                                                    src_file=self.nxf_cfg_organisation_f,
-                                                                    dest_d=self.log_d
-                                                                   )
+                if self.nxf_cfg_organisation_f.parent != self.log_d:
+                    self.nxf_cfg_organisation_f = await copy_file_async(
+                                                                        src_file=self.nxf_cfg_organisation_f,
+                                                                        dest_d=self.log_d
+                                                                       )
                 cmd_vars.update({'nxf_cfg_organisation':self.nxf_cfg_organisation_f.as_posix()})
             else:
                 nxf_cmd.replace(' -c {{ nxf_cfg_organisation }}', '', 1)
                 del cmd_vars['nxf_cfg_organisation']
 
             if self.nxf_cfg_pipeline_f:
-                self.nxf_cfg_pipeline_f = await copy_file_async(
-                                                                src_file=self.nxf_cfg_pipeline_f,
-                                                                dest_d=self.log_d
-                                                               )
+                if self.nxf_cfg_pipeline_f.parent != self.log_d:
+                    self.nxf_cfg_pipeline_f = await copy_file_async(
+                                                                    src_file=self.nxf_cfg_pipeline_f,
+                                                                    dest_d=self.log_d
+                                                                    )
                 cmd_vars.update({'nxf_cfg_pipeline':self.nxf_cfg_pipeline_f.as_posix()})
             else:
                 nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
@@ -658,6 +660,7 @@ class Process(BaseModel):
             # удаляем ненужный exitcode и запускаем процесс
             self.exitcode_f.unlink(missing_ok=True)
 
+        self.status = 'running' # PROCESS_STATUSES_RUNNING
         asyncio.create_task(run_ssh_shell_detached(process=self))
         # Если процесс запущен неудачно - фиксируем время завершения
         if self.status not in PROCESS_STATUSES_RUNNING:

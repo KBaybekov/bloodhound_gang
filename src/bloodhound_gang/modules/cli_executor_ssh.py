@@ -18,11 +18,6 @@ async def run_ssh_shell_detached(
     хранилище, доступном для всех хостов.
     PID и время старта сохраняются в process.
     """
-    # Убеждаемся, что необходимые директории для логов существуют
-    process.work_d.mkdir(parents=True, exist_ok=True)
-    process.res_d.mkdir(parents=True, exist_ok=True)
-    process.log_d.mkdir(parents=True, exist_ok=True)
-
     # Строим shell-команду, которая:
     #   1. запускает ssh к указанному хосту,
     #   2. перенаправляет stdout и stderr в заданные файлы,
@@ -50,34 +45,47 @@ async def run_ssh_shell_detached(
         )
 
         remote_cmd = sh_join(sh_split(remote_cmd))
-
         cmd = ['ssh', process.host, remote_cmd]
-
-        # Запускаем через Popen без привязки к нашему терминалу.
-        # start_new_session=True делает процесс лидером новой сессии,
-        # что позволяет ему пережить завершение родительской программы.
-        # close_fds=True не даёт наследовать лишние дескрипторы.
-        # Родительскому Python-процессу не нужен вывод этой команды,
-        # поэтому stdout/stderr самого Popen направляем в DEVNULL.
-        logger.debug("Launching SSH: host=%s, command=%s", process.host, remote_cmd)
-        subprocess = Popen(
-            cmd,
-            stdin=DEVNULL,
-            stdout=DEVNULL,
-            stderr=DEVNULL,
-            start_new_session=True,
-            close_fds=True,
-            env=process.env
-        )
+        # Убеждаемся, что необходимые директории существуют
+        for d in [process.work_d, process.res_d, process.log_d]:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                process.status = 'failed[no_directory]' # PROCESS_STATUSES_FINISH_FAIL
+                process._set_finish()
+                logger.exception("Process '%s': Ошибка при создании директории %s", d.as_posix())
+                return
+        try:
+            # Запускаем через Popen без привязки к нашему терминалу.
+            # start_new_session=True делает процесс лидером новой сессии,
+            # что позволяет ему пережить завершение родительской программы.
+            # close_fds=True не даёт наследовать лишние дескрипторы.
+            # Родительскому Python-процессу не нужен вывод этой команды,
+            # поэтому stdout/stderr самого Popen направляем в DEVNULL.
+            logger.debug("Launching SSH: host=%s, command=%s", process.host, remote_cmd)
+            subprocess = Popen(
+                cmd,
+                stdin=DEVNULL,
+                stdout=DEVNULL,
+                stderr=DEVNULL,
+                start_new_session=True,
+                close_fds=True,
+                env=process.env
+            )
+        except Exception:
+            process.status = 'failed[no_result]' # PROCESS_STATUSES_FINISH_FAIL
+            process._set_finish()
+            logger.exception("Process '%s': Ошибка при создании подпроцесса на хосте %s", process.host)
+            return
         
         # Ждём появления файла pid с таймаутом 30 сек
-        for _ in range(30):
+        for _ in range(10):
             if process.pid_f.exists():
                 break
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
         else:
             logger.error("Process '%s': pidfile not found: %s", process.pid_f.as_posix())
-            process.status = 'failed[bad_pidfile]'
+            process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
             process._set_finish()
             subprocess.kill()
             return None
@@ -85,7 +93,6 @@ async def run_ssh_shell_detached(
         try:
             pid_string = process.pid_f.read_text().strip()
             pid = int(pid_string)
-            process.status = 'running' # PROCESS_STATUSES_RUNNING
             logger.debug("Process '%s' PID %d running on %s", process.process_id, pid, process.host)
         except OSError:
             logger.exception("Process '%s': Не удалось прочитать PID из %s", process.pid_f.as_posix())
@@ -97,7 +104,7 @@ async def run_ssh_shell_detached(
                         process.process_id, process.pid_f.as_posix(), process.pid_f.read_text().strip()
                         )
 
-        if process.status != 'running':
+        if process.status != 'running': # PROCESS_STATUSES_RUNNING
             process._set_finish()
             subprocess.kill()
 

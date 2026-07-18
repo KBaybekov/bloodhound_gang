@@ -103,7 +103,9 @@ PROCESS_STATUSES_FINISH_FAIL = {
                                 'failed[bad_pid]',
                                 'failed[bad_processing]',
                                 'failed[bad_pidfile]',
+                                'failed[no_directory]'
                                 'failed[no_result]',
+                                'failed[no_subprocess]',
                                 'failed[result_factory_fail]',
                                 'cancelled[timeout]',
                                 'cancelled[by_user]'
