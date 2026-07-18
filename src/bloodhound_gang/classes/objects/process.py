@@ -653,7 +653,7 @@ class Process(BaseModel):
             # удаляем ненужный exitcode и запускаем процесс
             self.exitcode_f.unlink(missing_ok=True)
 
-        await run_ssh_shell_detached(process=self)
+        asyncio.create_task(run_ssh_shell_detached(process=self))
         # Если процесс запущен неудачно - фиксируем время завершения
         if self.status not in PROCESS_STATUSES_RUNNING:
             self._set_finish()

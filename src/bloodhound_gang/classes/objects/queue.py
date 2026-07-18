@@ -332,6 +332,7 @@ class Queue(BaseModel):
                             # Лишние процессы отправляем к незапланированным
                             for proc in sorted_planned_processes[queue_length:]:
                                 proc.queue_number = None
+                                proc.status = 'created' # PROCESS_STATUSES_PLANNED
                                 self.processes_unplanned.add(proc)
                             # укорачиваем очередь с конца
                             updated_queue = sorted_planned_processes[:queue_length]
@@ -367,6 +368,7 @@ class Queue(BaseModel):
                         for proc in updated_queue:
                             queue_number += 1
                             proc.queue_number = queue_number
+                            proc.status = 'scheduled' # PROCESS_STATUSES_PLANNED
                             self.processes_planned.update({queue_number:proc})
                     return None
 
@@ -375,6 +377,7 @@ class Queue(BaseModel):
                 if self.processes_planned:
                     for proc in self.processes_planned.values():
                         proc.queue_number = None
+                        proc.status = 'created' # PROCESS_STATUSES_PLANNED
                         self.processes_unplanned.add(proc)
                     self.processes_planned = {}
                 return None
