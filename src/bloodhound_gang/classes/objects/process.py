@@ -608,6 +608,7 @@ class Process(BaseModel):
                                          data=sanitized,
                                          strict=True
                                         )
+        self.shell_command = "sleep 30" # !!! TEST
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
         return None
     

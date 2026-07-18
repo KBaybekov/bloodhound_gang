@@ -400,11 +400,16 @@ class Queue(BaseModel):
         """
         Удаляет указанный процесс из списка активных. Высвобождает общие ресурсы, занятые процессом
         """
-        self.processes_active.remove(process)
+        try:
+            self.processes_active.remove(process)
+        except KeyError:
+            self.logger.warning(
+                                "Process '%s' не найден среди активных процессов очереди '%s'",
+                                process.process_id, self.name
+                               )
         for sh_r in self.shared_resources:
             sh_r.free_val_from_process(process)
         self.logger.debug("Process '%s' removed from active, resources freed", process.process_id)
-        return None
 
     def prepare_processes_for_start(
                                     self
