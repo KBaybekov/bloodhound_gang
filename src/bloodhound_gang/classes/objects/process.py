@@ -560,7 +560,7 @@ class Process(BaseModel):
                                                                 src_file=self.nxf_cfg_pipeline_f,
                                                                 dest_d=self.log_d
                                                                )
-                cmd_vars.update({'nxf_cfg_pipeline_f':self.nxf_cfg_pipeline_f.as_posix()})
+                cmd_vars.update({'nxf_cfg_pipeline':self.nxf_cfg_pipeline_f.as_posix()})
             else:
                 nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
                 del cmd_vars['nxf_cfg_pipeline']
