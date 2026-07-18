@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 import pandas as pd 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Final
 
 from constants import PORES, TASK_DELIMITER, DELIMITER, TIMEZONE
 from modules.logger import get_logger
@@ -687,6 +687,7 @@ async def copy_file_async(
         raise
     return new_path
 
+'''
 def validate_nextflow_run_name(name: str) -> None:
     """
     Валидирует имя запуска либо выбрасывает ValueError
@@ -746,6 +747,55 @@ def validate_nextflow_run_name(name: str) -> None:
         )
 
     return None
+'''
+
+def ensure_nextflow_name(name: str) -> str:
+    """
+    Приводит строку к требованиям Nextflow для имени запуска.
+    Если коррекция невозможна, выбрасывает ValueError.
+
+    :param name: Исходное имя (может быть любым).
+    :return: Исправленное валидное имя.
+    :raises ValueError: Если после всех исправлений имя остаётся невалидным.
+    """
+    _NEXTFLOW_NAME_PATTERN: Final = re.compile(r"^[a-z](?:[a-z\d]|[-_](?=[a-z\d])){0,79}$")
+    
+    if not name:
+        raise ValueError("Имя запуска не может быть пустым.")
+
+    # Приводим к нижнему регистру
+    name = name.lower()
+
+    # Заменяем любые недопустимые символы на дефис
+    name = re.sub(r'[^a-z0-9\-_]', '-', name)
+
+    # Сжимаем подряд идущие разделители (дефисы и подчёркивания) до одного дефиса
+    name = re.sub(r'[-_]{2,}', '-', name)
+
+    # Удаляем ведущие и завершающие разделители
+    name = name.strip('-_')
+
+    # Если строка стала пустой – коррекция невозможна
+    if not name:
+        raise ValueError("После очистки имя запуска стало пустым.")
+
+    # Усекаем до максимальной длины
+    name = name[:80]
+
+    # После усечения опять могли оказаться разделители в конце
+    name = name.rstrip('-_')
+
+    # Если не начинается с латинской буквы, добавляем префикс 'x'
+    if not (name[0].isalpha() and name[0].islower()):
+        name = f"x{name}"
+        # Усекаем с учётом префикса
+        name = name[:80]
+
+    # Финальная проверка на всякий случай
+    if not _NEXTFLOW_NAME_PATTERN.match(name):
+        raise ValueError(f"Не удалось сформировать корректное имя Nextflow: '{name}'")
+
+    return name
 
 def get_now_time(
                  microseconds:bool=False
