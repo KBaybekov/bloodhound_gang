@@ -620,7 +620,7 @@ class Process(BaseModel):
             try:
                 if self.nextflow_id == 'UNDEFINED':
                     timestamp = self.start.strftime("%d_%m_%Y_%H_%M_%S")
-                    self.nextflow_id = DELIMITER.join([self.task_id, self.sample_id, timestamp])
+                    self.nextflow_id = '-'.join([self.task_id, self.sample_id, timestamp])
                     logger.debug("Process '%s': nextflow_id='%s'", self.process_id, self.nextflow_id)
                 validate_nextflow_run_name(self.nextflow_id)
             except Exception:
