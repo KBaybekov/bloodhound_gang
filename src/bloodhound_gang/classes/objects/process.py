@@ -570,8 +570,13 @@ class Process(BaseModel):
 
         # Подготавливаем файл с параметрами запуска пайплайна
         try:
-            if self.pipeline_vars and self.start:
-                self.params_f = self.log_d / f'{self.process_id}_{self.start.strftime("%d_%m_%Y_%H_%M_%S")}-params.yaml'
+            if self.pipeline_vars:
+                timestamp = self.start or get_now_time()
+                self.params_f = self.log_d / DELIMITER.join([
+                                                             self.process_id,
+                                                             timestamp.strftime("%d_%m_%Y_%H_%M_%S"),
+                                                             'params.yaml'
+                                                            ])  # f'{self.process_id}_{self.start.strftime("%d_%m_%Y_%H_%M_%S")}-params.yaml'
                 await generate_params_file(
                                            params=self.pipeline_vars,
                                            output_path=self.params_f
