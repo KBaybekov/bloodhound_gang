@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Literal, Set
+from typing import Literal
 
 import asyncio
 from bson import ObjectId
@@ -138,27 +138,28 @@ class WatchdogProcessing(WatchdogBasic):
         self.result_d = MAIN_DS['res_d']
                 
         # Хранилища объектов Sample
-        self.samples: Dict[ObjectId, Sample] = {} # {str(sample._id): Sample}
-        self.task_ready_samples:Dict[str, List[Sample]] = {}
+        self.samples: dict[ObjectId, Sample] = {} # {str(sample._id): Sample}
+        self.task_ready_samples:dict[str, list[Sample]] = {}
 
         # Хосты
         self.hosts: dict[str,Host] = {}
 
         # Задания обработки и их id
-        self.tasks:Dict[str, Task] = {}
-        self.task_args:Dict[str, dict] = {}
+        self.tasks:dict[str, Task] = {}
+        self.task_args:dict[str, dict] = {}
 
         # Процессы
-        self.processes:Dict[str, Process] = {}
+        self.processes:dict[str, Process] = {}
+        self.existing_processes:set[str] = set()
         # status = running
-        self.running_processes:Dict[str, Process] = {}
+        self.running_processes:dict[str, Process] = {}
         # status in {created, scheduled}; {queue:set[Process]}
-        self.planned_processes:Dict[str, set[Process]] = {}
+        self.planned_processes:dict[str, set[Process]] = {}
 
         # Очереди
-        self.queues:Dict[str, Queue] = {}
+        self.queues:dict[str, Queue] = {}
         # Хранение данных о модификации конфигов
-        self._cfgs_mtime:Dict[Path, float] = {}
+        self._cfgs_mtime:dict[Path, float] = {}
 
 
         # CONFIGS
@@ -166,7 +167,7 @@ class WatchdogProcessing(WatchdogBasic):
         # Конфиг Nextflow с надстройками организации (передаётся в задания)
         self._nxf_cfg_organisation = local_configs.pop('nxf_cfg_organisation')
         # Загружаемые конфиги (атрибут:YAML)
-        self.cfgs: Dict[str, Path] = local_configs
+        self.cfgs: dict[str, Path] = local_configs
 
     # ------------------------------------------------------------------
     # Главный метод наблюдения (вызывается в цикле)
@@ -393,15 +394,15 @@ class WatchdogProcessing(WatchdogBasic):
         Формирует объекты Process на основе готовых образцов и Task.
         Проверяет перед формированием, что процесс не был сформирован ранее
         """
-        db_stored_processes:Set[str] = set(
-                                           doc['process_id']
-                                           for doc in await self.dao.find(
-                                                                    collection=self.db_collection_processes,
-                                                                    query={},
-                                                                    projection={'process_id':1}
-                                                                   )
-                                           if 'process_id' in doc
-                                          )
+        self.existing_processes:set[str] = set(
+                                                doc['process_id']
+                                                for doc in await self.dao.find(
+                                                                            collection=self.db_collection_processes,
+                                                                            query={},
+                                                                            projection={'process_id':1}
+                                                                        )
+                                                if 'process_id' in doc
+                                                )
         new_count = 0
         for task_id, samples in self.task_ready_samples.items():
             task = self.tasks[task_id]
@@ -411,11 +412,12 @@ class WatchdogProcessing(WatchdogBasic):
                 new_sample_processes = {
                                         process_id:process
                                         for process_id, process in task.create_sample_processes(sample=sample).items()
-                                        if process_id not in db_stored_processes
+                                        if process_id not in self.existing_processes
                                        }
                 if new_sample_processes:
                     for proc in new_sample_processes.values():
                         sample.store_process_status(proc)
+                        self.existing_processes.add(proc.process_id)
                     sample.processes.created.update({task_id:list(new_sample_processes.keys())})
                     self.processes.update(new_sample_processes)
                     new_count += len(new_sample_processes)
@@ -577,7 +579,7 @@ class WatchdogProcessing(WatchdogBasic):
         """
         Формирование очередей на запуск
         """
-        async def get_last_queue_numbers() -> Dict[str, Dict[str, int]]:
+        async def get_last_queue_numbers() -> dict[str, dict[str, int]]:
             """
             Находит с помощью аггрегации в БД последние порядковые номера запущенных процессов.
             Возвращает словарь {очередь:{process_id:номер очереди}}
@@ -789,7 +791,8 @@ class WatchdogProcessing(WatchdogBasic):
         for sample in self.samples.values():
             if sample._changed:
                 sample._update_original()
-        for process_id, process in self.processes.items():
+        for process_id in list(self.processes.keys()):
+            process = self.processes[process_id]
             # удаляем из памяти завершенные процессы
             if process.status in PROCESS_STATUSES_FINISHED:
                 del self.processes[process_id]

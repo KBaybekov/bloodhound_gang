@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator,
 
 from classes.objects.taskload import TaskLoad
 from constants import (
+                       DELIMITER,
                        PROCESS_STATUSES,
                        PROCESS_STATUSES_RUNNING,
                        PROCESS_STATUSES_FINISHED,
@@ -611,14 +612,16 @@ class Process(BaseModel):
         """
         from modules.cli_executor_ssh import run_ssh_shell_detached
 
+        logger.debug("Process '%s': preparing for run...", self.process_id)
         # Запуск процесса - впервые
-        if self.status == 'scheduled':
+        if self.status == 'scheduled': # PROCESS_STATUSES_PLANNED
             self.start = get_now_time()
             # Создаём и валидируем nextflow_id
             try:
                 if self.nextflow_id == 'UNDEFINED':
                     timestamp = self.start.strftime("%d_%m_%Y_%H_%M_%S")
-                    self.nextflow_id = f"{self.task_id}-{self.sample_id}-{timestamp}"
+                    self.nextflow_id = DELIMITER.join([self.task_id, self.sample_id, timestamp])
+                    logger.debug("Process '%s': nextflow_id='%s'", self.process_id, self.nextflow_id)
                 validate_nextflow_run_name(self.nextflow_id)
             except Exception:
                 self.start = None
@@ -629,6 +632,7 @@ class Process(BaseModel):
             # Формируем команду (специфична для хоста и времени запуска)
             try:
                 await self.form_cmd()
+                logger.debug("Process '%s': formed cmd:\n%s", self.process_id, self.shell_command)
             except Exception:
                 self.start = None
                 logger.exception("Process '%s': Не удалось сформировать команду для запуска")
@@ -644,7 +648,7 @@ class Process(BaseModel):
             self.env.update({'NXF_RUN_NAME':self.nextflow_id})
             self.env.update({'NXF_LOG_D':self.log_d.as_posix()})
         # Запуск осуществлялся ранее
-        elif self.status == 'cancelled[system_interrupt]':
+        elif self.status == 'cancelled[system_interrupt]': # PROCESS_STATUSES_PLANNED
             logger.info("Process '%s': перезапуск", self.process_id)
             # удаляем ненужный exitcode и запускаем процесс
             self.exitcode_f.unlink(missing_ok=True)
