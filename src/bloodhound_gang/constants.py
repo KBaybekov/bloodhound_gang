@@ -158,3 +158,5 @@ NEXTFLOW_CMD_VARIABLES:dict[str, str|None] = {
                                               k:None for k in
                                               parse_str_for_variables_names(NEXTFLOW_TEMPLATE)
                                              }
+
+SSH_USER = os.environ.get('SSH_USER')

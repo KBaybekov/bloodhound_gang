@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from subprocess import Popen, DEVNULL
 from shlex import join as sh_join, split as sh_split, quote as sh_quote
+from constants import SSH_USER
 from classes.objects.process import Process
 from modules.logger import get_logger
 
@@ -45,7 +46,7 @@ async def run_ssh_shell_detached(
         )
 
         remote_cmd = sh_join(sh_split(remote_cmd))
-        cmd = ['ssh', process.host, remote_cmd]
+        cmd = ['ssh', f"{SSH_USER}@{process.host}", remote_cmd]
         # Убеждаемся, что необходимые директории существуют
         for d in [process.work_d, process.res_d, process.log_d]:
             try:
