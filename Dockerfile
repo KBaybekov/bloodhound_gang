@@ -29,4 +29,5 @@ COPY \
 . . 
 
 EXPOSE 8000
+
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
