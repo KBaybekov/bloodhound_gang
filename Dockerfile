@@ -10,7 +10,7 @@ WORKDIR /home/bloodhound_gang
 
 # Установка зависимостей
 COPY requirements.txt .
-RUN pip install --index-url https://pypi-mirror.gitverse.ru/simple/ --user --no-cache-dir -r requirements.txt
+RUN pip install --index-url https://pypi-mirror.gitverse.ru/simple/ --no-cache-dir -r requirements.txt
 
 # Аргумент версии, передаваемый при сборке
 ARG VERSION=unknown
