@@ -4,7 +4,7 @@ services:
     image: kbaybekov/bloodhound_gang:latest
     container_name: bloodhound_gang
     restart: unless-stopped
-    #user: "${UID:-1000}:${GID:-1000}"
+    user: "${UID:-1000}:${GID:-1000}"
     env_file:
       - .env                      # переменные из внешнего .env попадут в окружение контейнера
     volumes:

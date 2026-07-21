@@ -2,8 +2,10 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl openssh-client gosu \
     && rm -rf /var/lib/apt/lists/*
-RUN useradd --create-home --shell /bin/bash bloodhound_gang
-USER bloodhound_gang
+#RUN useradd --create-home --shell /bin/bash bloodhound_gang
+#USER bloodhound_gang
+RUN groupadd --gid 1000 bloodhound_gang && \
+    useradd --create-home --shell /bin/bash --uid 1000 --gid 1000 bloodhound_gang
 WORKDIR /home/bloodhound_gang
 
 # Установка зависимостей
@@ -28,8 +30,10 @@ COPY \
 --exclude=logs/ \
 . . 
 
-RUN chmod +x ./entrypoint.sh
+RUN chmod -R a+rX /home/bloodhound_gang && \
+    chmod 777 /home/bloodhound_gang/.cache /home/bloodhound_gang/.local 2>/dev/null || true
+#RUN chmod +x ./entrypoint.sh
 
 EXPOSE 8000
-ENTRYPOINT ["./entrypoint.sh"]
+#ENTRYPOINT ["./entrypoint.sh"]
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
