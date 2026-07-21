@@ -63,6 +63,7 @@ async def run_ssh_shell_detached(
             # Родительскому Python-процессу не нужен вывод этой команды,
             # поэтому stdout/stderr самого Popen направляем в DEVNULL.
             logger.debug("Launching SSH: host=%s, command=%s", process.host, remote_cmd)
+            """
             subprocess = Popen(
                 cmd,
                 stdin=DEVNULL,
@@ -72,6 +73,18 @@ async def run_ssh_shell_detached(
                 close_fds=True,
                 env=process.env
             )
+            """
+            stderr_file = process.work_d / "ssh_stderr.log"
+            with open(stderr_file, 'w') as err_f:
+                subprocess = Popen(
+                    cmd,
+                    stdin=DEVNULL,
+                    stdout=DEVNULL,
+                    stderr=err_f,
+                    start_new_session=True,
+                    close_fds=True,
+                    env=process.env
+                )
         except Exception:
             process.status = 'failed[no_result]' # PROCESS_STATUSES_FINISH_FAIL
             process._set_finish()

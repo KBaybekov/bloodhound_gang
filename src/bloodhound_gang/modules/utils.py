@@ -368,8 +368,8 @@ def render_text(
         logger.exception("Error during rendering string.\n\Template:\n%s\nData:\n%r", template, data)
         raise e
     else:
-        rendered_preview = result[:200] + "..." if len(result) > 200 else result
-        logger.debug("Rendered template (preview): %s", rendered_preview)
+        #rendered_preview = result[:200] + "..." if len(result) > 200 else result
+        logger.debug("Rendered string: %s", result)
         return result
 
 def load_callable(spec: str|Callable) -> Callable:
