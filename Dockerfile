@@ -28,6 +28,8 @@ COPY \
 --exclude=logs/ \
 . . 
 
+RUN chmod +x .  /entrypoint.sh
+
 EXPOSE 8000
 
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
