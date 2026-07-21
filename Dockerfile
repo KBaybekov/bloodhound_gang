@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl openssh-client \
+    build-essential curl openssh-client gosu \
     && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --shell /bin/bash bloodhound_gang
 USER bloodhound_gang
@@ -28,7 +28,7 @@ COPY \
 --exclude=logs/ \
 . . 
 
-RUN chmod +x .  /entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 EXPOSE 8000
 
