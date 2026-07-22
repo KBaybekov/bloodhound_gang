@@ -106,7 +106,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
                                    process.process_id, pid_str)
             except Exception:
                 logger.exception("Process '%s': ошибка чтения pid-файла", process.process_id)
-
+        """
     else:
         if not process.pid_f.exists():
             # Таймаут ожидания pid-файла
@@ -117,7 +117,27 @@ async def run_ssh_shell_detached(process: Process) -> None:
         process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return None
+        """
+    else:
+        # Читаем stderr, чтобы узнать причину ошибки
+        try:
+            stderr_data = await asyncio.wait_for(subprocess.stderr.read(), timeout=5)
+            stderr_text = stderr_data.decode(errors='replace').strip()
+        except Exception:
+            stderr_text = "(не удалось прочитать stderr)"
+        logger.error("Process '%s': pid-файл не появился за %d сек. stderr ssh: %s",
+                        process.process_id, PID_WAIT_TIMEOUT, stderr_text)
+        # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
+        try:
+            subprocess.kill()
+            await subprocess.wait()
+        except ProcessLookupError:
+            pass
+        process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
+        process.set_finish()
+        return None
 
+    
     # PID получен – процесс считается запущенным
     process.status = 'running'  # PROCESS_STATUSES_RUNNING
     logger.info("Process '%s' запущен на %s с PID %d", process.process_id, process.host, pid)
