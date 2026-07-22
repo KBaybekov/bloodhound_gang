@@ -5,11 +5,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 #RUN useradd --create-home --shell /bin/bash bloodhound_gang
-USER bloodhound_gang
 RUN groupadd --gid 1000 bloodhound_gang && \
     useradd --create-home --shell /bin/bash --uid 1000 --gid 1000 bloodhound_gang
 #RUN mkdir /bloodhound_gang
 #WORKDIR /bloodhound_gang
+#USER bloodhound_gang
 WORKDIR /home/bloodhound_gang
 
 # Установка зависимостей
@@ -25,7 +25,7 @@ COPY \
 --chown=bloodhound_gang:bloodhound_gang \
 --exclude=src/data_other \
 --exclude=.env \
---exclude=entrypoint.sh \
+#--exclude=entrypoint.sh \
 --exclude=Dockerfile \
 --exclude=docker-compose.yml \
 --exclude=build.sh \
@@ -39,7 +39,7 @@ COPY \
 #    chmod 777 /home/bloodhound_gang/.cache /home/bloodhound_gang/.local 2>/dev/null || true
 
 EXPOSE 8000
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+#COPY entrypoint.sh /entrypoint.sh
+#RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
