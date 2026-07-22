@@ -61,14 +61,14 @@ async def run_ssh_shell_detached(process: Process) -> None:
     exitcode_file = shlex.quote(str(process.exitcode_f))
 
     # Удалённая команда с trap для удаления pid-файла
-    remote_cmd = (
-        f"PIDFILE={pid_file}; "
-        f"echo $$ > $PIDFILE && "
-        f"trap 'rm -f $PIDFILE' EXIT; "
-        f"( {process.shell_command} ) > {stdout_file} "
-        f"2> {stderr_file}; "
+    remote_cmd = [
+        f"PIDFILE={pid_file}; ",
+        "echo $$ > $PIDFILE && ",
+        "trap 'rm -f $PIDFILE' EXIT; ",
+        f"( {process.shell_command} ) > {stdout_file} ",
+        f"2> {stderr_file}; ",
         f"echo $? > {exitcode_file}"
-    )
+    ]
     
     remote_cmd_parts = [
         "sh", "-c",
