@@ -42,5 +42,5 @@ COPY \
 EXPOSE 8000
 #COPY entrypoint.sh /entrypoint.sh
 #RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["./entrypoint.sh"]
+#ENTRYPOINT ["./entrypoint.sh"]
 CMD ["python", "src/bloodhound_gang/bloodhound_gang.py"]
