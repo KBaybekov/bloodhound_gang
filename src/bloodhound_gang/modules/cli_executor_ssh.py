@@ -59,7 +59,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
     stdout_file = process.stdout_f.as_posix()
     stderr_file = process.stderr_f.as_posix()
     exitcode_file = process.exitcode_f.as_posix()
-
+    """
     # Удалённая команда с trap для удаления pid-файла
 
     remote_cmd = [
@@ -73,12 +73,6 @@ async def run_ssh_shell_detached(process: Process) -> None:
     f"echo \\$? > {exitcode_file}'\""
 ]
     
-    """remote_cmd_parts = [
-        "sh", "-c",
-        f"echo $$ > {shlex.quote(str(process.pid_f))} && "
-        f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
-        f"echo $? > {shlex.quote(str(process.exitcode_f))}"
-    ]"""
     # Собираем аргументы для локального ssh
     ssh_cmd = [
         "ssh",
@@ -87,7 +81,54 @@ async def run_ssh_shell_detached(process: Process) -> None:
         "-o", "StrictHostKeyChecking=accept-new",  # для новых хостов (можно убрать в проде)
         f"{SSH_USER}@{process.host}",
         *remote_cmd                  # передаём как отдельные аргументы
+    ]"""
+
+    """remote_cmd_parts = [
+        "sh", "-c",
+        f"echo $$ > {shlex.quote(str(process.pid_f))} && "
+        f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
+        f"echo $? > {shlex.quote(str(process.exitcode_f))}"
+    ]"""
+
+    # 1. Формируем чистую внутреннюю Bash-команду БЕЗ хардкодных внешних кавычек.
+    # Используем логику образца с переменной PIDFILE, чтобы избежать дублирования путей.
+    bash_inner_script = (
+        f"PIDFILE={pid_file}; "
+        "echo $$ > ${PIDFILE} && "
+        'trap "rm -f ${PIDFILE}" EXIT; '
+        f"( {process.shell_command} ) > {stdout_file} 2> {stderr_file}; "
+        f"echo $? > {exitcode_file}"
+    )
+
+    # Передаем bash -c и внутренний скрипт как ОДИН аргумент для SSH.
+    # Обратите внимание: для корректного парсинга удаленным SSH, весь внутренний bash-скрипт 
+    # оборачивается в одинарные кавычки.
+    remote_cmd = f"bash -c '{bash_inner_script}'"
+
+    # 2. Собираем аргументы для SSH (объединяем '-o' с их значениями ради красивого лога)
+    ssh_cmd = [
+        "ssh",
+        "-o UserKnownHostsFile=/tmp/known_hosts",
+        f"-o ConnectTimeout={SSH_CONNECT_TIMEOUT}",
+        "-o StrictHostKeyChecking=accept-new",
+        f"{SSH_USER}@{process.host}",
+        remote_cmd
     ]
+
+    # 3. Запись в command.sh в точном соответствии с вашим образцом (с переносами строк)
+    with open('command.sh', 'w') as f:
+        f.write(' \\\n'.join(ssh_cmd) + '\n')
+
+    # 4. Асинхронный запуск. 
+    # Перед передачей в create_subprocess_exec нам нужно разбить строки вида "-o Key=Value", 
+    # так как subprocess требует строго раздельные аргументы.
+    final_exec_args = []
+    for arg in ssh_cmd:
+        if arg.startswith("-o "):
+            final_exec_args.extend(["-o", arg[3:]])
+        else:
+            final_exec_args.append(arg)
+
     # Логируем команду
     with open(process.log_d / 'command.sh', 'w') as f:
         f.write(' \\\n'.join(ssh_cmd) + '\n')
@@ -96,7 +137,6 @@ async def run_ssh_shell_detached(process: Process) -> None:
     try:
         # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
-        """
         subprocess = await asyncio.create_subprocess_exec(
             *ssh_cmd,
             stdin=asyncio.subprocess.DEVNULL,
@@ -105,15 +145,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
             env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
-        """
-        subprocess = await asyncio.create_subprocess_exec(
-            *ssh_cmd,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=None,
-            env=process.env,
-            start_new_session=True   # чтобы процесс стал лидером сессии
-        )
+
     except Exception as e:
         logger.exception("Process '%s': не удалось запустить ssh-подпроцесс: %s", process.process_id, e)
         process.status = 'failed[no_subprocess]' # PROCESS_STATUSES_FINISH_FAIL
