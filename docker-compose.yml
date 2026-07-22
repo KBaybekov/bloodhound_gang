@@ -18,20 +18,20 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${SSH_AUTH_SOCK}:/ssh-auth.sock:ro
       # SSH-ключи (read-only)
-      #- ${HOME}/.ssh:/home/bloodhound_gang/.ssh:ro
+      #- ${HOME}/.ssh:/bloodhound_gang/.ssh:ro
 
       # Внешний .env монтируется как файл, чтобы dotenv мог его прочитать при старте
-      - ./.env:/home/bloodhound_gang/.env:ro
+      - ./.env:/bloodhound_gang/.env:ro
 
-      # Внешняя папка conf/ затеняет встроенную /home/bloodhound_gang/conf/
-      - ./conf:/home/bloodhound_gang/conf:ro
+      # Внешняя папка conf/ затеняет встроенную /bloodhound_gang/conf/
+      - ./conf:/bloodhound_gang/conf:ro
 
-      # Внешняя папка data/logs/ затеняет встроенную /home/bloodhound_gang/conf/
-      - ./data/logs/:/home/bloodhound_gang/logs:rw
+      # Внешняя папка data/logs/ затеняет встроенную /bloodhound_gang/conf/
+      - ./data/logs/:/bloodhound_gang/logs:rw
 
       # Если существует внешняя папка tasks/, она затеняет src/tasks/
       # Используем bind mount с опциональным созданием (если папки нет, Docker создаст пустую)
-      - ./tasks:/home/bloodhound_gang/src/tasks:ro
+      - ./tasks:/bloodhound_gang/src/tasks:ro
 
       # Рабочие директории (пути берутся из .env, должны существовать на хосте)
       - ${SRC_D}:${SRC_D}:ro
@@ -40,7 +40,7 @@ services:
       - ${LOG_D}:${LOG_D}:rw
 
       # Данные (сохраняются на хосте)
-      - ./data/:/home/bloodhound_gang/data/:rw
+      - ./data/:/bloodhound_gang/data/:rw
     ports:
       - "${HTTP_METRICS_PORT:-8000}:${HTTP_METRICS_PORT:-8000}"
     networks:
