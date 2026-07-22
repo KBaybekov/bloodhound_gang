@@ -100,10 +100,10 @@ PROCESS_STATUSES_RUNNING = {'running'}
 PROCESS_STATUSES_FINISH_OK = {'completed'}
 PROCESS_STATUSES_FINISH_FAIL = {
                                 'failed[bad_exitcode]',
-                                'failed[bad_pid]',
                                 'failed[bad_processing]',
                                 'failed[bad_pidfile]',
-                                'failed[no_directory]'
+                                'failed[no_directory]',
+                                'failed[no_host]',
                                 'failed[no_result]',
                                 'failed[no_subprocess]',
                                 'failed[result_factory_fail]',

@@ -1,127 +1,126 @@
 from __future__ import annotations
 
 import asyncio
-from subprocess import Popen, DEVNULL
-from shlex import join as sh_join, split as sh_split, quote as sh_quote
-from constants import SSH_USER
+import shlex
+from constants import SSH_USER, request_env_variable
 from classes.objects.process import Process
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
 
-async def run_ssh_shell_detached(
-                           process: Process
-                          ) -> None:
+# Константы для таймаутов
+SSH_CONNECT_TIMEOUT = 10  # секунд на установку соединения
+PID_WAIT_TIMEOUT = 30     # секунд на появление pid-файла
+PID_CHECK_INTERVAL = 0.5  # интервал проверки
+
+async def run_ssh_shell_detached(process: Process) -> None:
     """
-    Запускает оболочку (ssh user@host) в полностью отсоединённом режиме.
+    Запускает удалённую команду через SSH в полностью отсоединённом режиме.
+    Использует SSH-агент хоста (форвардится через -o ForwardAgent=yes).
     Процесс продолжает жить после завершения родительской Python-программы.
-    Вывод (stdout/stderr) и код возврата записываются в файлы на разделяемом
-    хранилище, доступном для всех хостов.
+    Вывод (stdout/stderr) и код возврата записываются в файлы на общем хранилище.
     PID и время старта сохраняются в process.
     """
-    # Строим shell-команду, которая:
-    #   1. запускает ssh к указанному хосту,
-    #   2. перенаправляет stdout и stderr в заданные файлы,
-    #   3. после завершения ssh записывает код возврата в exitcode-файл.
-    # Все пути должны быть доступны на общем хранилище.
-    if process.host is not None:
-        """
-        remote_cmd = (
-            f'{process.shell_command}'
-            f' > {sh_quote(process.stdout_f.as_posix())}'
-            f' 2> {sh_quote(process.stderr_f.as_posix())}'
-            f'; echo $? > {sh_quote(process.exitcode_f.as_posix())}'
-        )
-        """
+    if process.host is None:
+        logger.error("Process '%s': host не указан", process.process_id)
+        process.status = 'failed[no_host]' # PROCESS_STATUSES_FINISH_FAIL
+        process.set_finish()
+        return
 
-        process.pid_f = process.work_d / "process.pid"
+    # Проверка доступности SSH-агента
+    auth_sock = request_env_variable('SSH_AUTH_SOCK')
+    if not auth_sock:
+        logger.error("Process '%s': SSH_AUTH_SOCK не задан", process.process_id)
+        process.status = 'failed[no_ssh_agent]'
+        process.set_finish()
+        return
 
-        # Удалённая команда: записать PID в файл, затем выполнить основную команду
-        remote_cmd = (
-            f"echo $$ > {sh_quote(process.pid_f.as_posix())} && "
-            f"exec {process.shell_command} "
-            f"> {sh_quote(process.stdout_f.as_posix())} "
-            f"2> {sh_quote(process.stderr_f.as_posix())}; "
-            f"echo $? > {sh_quote(process.exitcode_f.as_posix())}"
-        )
-
-        remote_cmd = sh_join(sh_split(remote_cmd))
-        cmd = ['ssh', f"{SSH_USER}@{process.host}", remote_cmd]
-        # Убеждаемся, что необходимые директории существуют
-        for d in [process.work_d, process.res_d, process.log_d]:
-            try:
-                d.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                process.status = 'failed[no_directory]' # PROCESS_STATUSES_FINISH_FAIL
-                process._set_finish()
-                logger.exception("Process '%s': Ошибка при создании директории %s", d.as_posix())
-                return
+    # Гарантируем наличие всех директорий
+    for d in [process.work_d, process.res_d, process.log_d]:
         try:
-            # Запускаем через Popen без привязки к нашему терминалу.
-            # start_new_session=True делает процесс лидером новой сессии,
-            # что позволяет ему пережить завершение родительской программы.
-            # close_fds=True не даёт наследовать лишние дескрипторы.
-            # Родительскому Python-процессу не нужен вывод этой команды,
-            # поэтому stdout/stderr самого Popen направляем в DEVNULL.
-            logger.debug("Launching SSH: host=%s, command=%s", process.host, remote_cmd)
-            """
-            subprocess = Popen(
-                cmd,
-                stdin=DEVNULL,
-                stdout=DEVNULL,
-                stderr=DEVNULL,
-                start_new_session=True,
-                close_fds=True,
-                env=process.env
-            )
-            """
-            stderr_file = process.work_d / "ssh_stderr.log"
-            with open(stderr_file, 'w') as err_f:
-                subprocess = Popen(
-                    cmd,
-                    stdin=DEVNULL,
-                    stdout=DEVNULL,
-                    stderr=err_f,
-                    start_new_session=True,
-                    close_fds=True,
-                    env=process.env
-                )
-        except Exception:
-            process.status = 'failed[no_result]' # PROCESS_STATUSES_FINISH_FAIL
-            process._set_finish()
-            logger.exception("Process '%s': Ошибка при создании подпроцесса на хосте %s", process.host)
+            d.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.exception("Process '%s': не удалось создать директорию %s: %s",
+                             process.process_id, d, e)
+            process.status = 'failed[no_directory]'
+            process.set_finish()
             return
-        
-        # Ждём появления файла pid с таймаутом 30 сек
-        for _ in range(10):
-            if process.pid_f.exists():
-                break
-            await asyncio.sleep(0.5)
-        else:
-            logger.error("Process '%s': pidfile not found: %s", process.pid_f.as_posix())
-            process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
-            process._set_finish()
-            subprocess.kill()
-            return None
-        
-        try:
-            pid_string = process.pid_f.read_text().strip()
-            pid = int(pid_string)
-            logger.debug("Process '%s' PID %d running on %s", process.process_id, pid, process.host)
-        except OSError:
-            logger.exception("Process '%s': Не удалось прочитать PID из %s", process.pid_f.as_posix())
-            process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
-        except ValueError:
-            process.status = 'failed[bad_pid]' # PROCESS_STATUSES_FINISH_FAIL
-            logger.exception(
-                        "Process '%s': Wrong content of pidfile '%s': %s",
-                        process.process_id, process.pid_f.as_posix(), process.pid_f.read_text().strip()
-                        )
 
-        if process.status != 'running': # PROCESS_STATUSES_RUNNING
-            process._set_finish()
-            subprocess.kill()
+    # Пути к PID-файлу
+    process.pid_f = process.work_d / "process.pid"
+    
+    # Формируем удалённую команду (без exec!):
+    # 1. Записываем PID текущей оболочки в pid_file.
+    # 2. Выполняем основную команду, перенаправляя stdout/stderr.
+    # 3. После её завершения записываем exit code в exitcode_file.
+    # Используем sh -c для корректной обработки составной команды.
+    remote_cmd_parts = [
+        "sh", "-c",
+        f"echo $$ > {shlex.quote(str(process.pid_f))} && "
+        f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
+        f"echo $? > {shlex.quote(str(process.exitcode_f))}"
+    ]
+    # Собираем аргументы для локального ssh
+    ssh_cmd = [
+        "ssh",
+#        "-o", "ForwardAgent=yes",          # использовать агент хоста
+        "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",         # таймаут на подключение
+        "-o", "StrictHostKeyChecking=accept-new",  # для новых хостов (можно убрать в проде)
+        f"{SSH_USER}@{process.host}",
+        *remote_cmd_parts                  # передаём как отдельные аргументы
+    ]
+    # Логируем команду
+    with open(process.work_d / 'command.sh', 'w') as f:
+        f.write(' \\\n'.join(ssh_cmd) + '\n')
+    logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
-        # Немедленно выходим – порождённый процесс продолжит
-        # работу независимо от текущей Python-программы.
-    return
+    try:
+        # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
+        # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
+        subprocess = await asyncio.create_subprocess_exec(
+            *ssh_cmd,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=process.env,
+            start_new_session=True   # чтобы процесс стал лидером сессии
+        )
+    except Exception as e:
+        logger.exception("Process '%s': не удалось запустить ssh-подпроцесс: %s", process.process_id, e)
+        process.status = 'failed[no_subprocess]' # PROCESS_STATUSES_FINISH_FAIL
+        process.set_finish()
+        return None
+
+    # Ждём появления pid-файла с таймаутом
+    pid = None
+    for _ in range(int(PID_WAIT_TIMEOUT / PID_CHECK_INTERVAL)):
+        await asyncio.sleep(PID_CHECK_INTERVAL)
+        if process.pid_f.exists():
+            try:
+                pid_str = process.pid_f.read_text().strip()
+                if pid_str.isdigit():
+                    pid = int(pid_str)
+                    break
+                else:
+                    logger.warning("Process '%s': pid-файл содержит нечисловое значение: %s",
+                                   process.process_id, pid_str)
+            except Exception:
+                logger.exception("Process '%s': ошибка чтения pid-файла", process.process_id)
+
+    else:
+        if not process.pid_f.exists():
+            # Таймаут ожидания pid-файла
+            logger.error("Process '%s': pid-файл не появился за %d сек", process.process_id, PID_WAIT_TIMEOUT)
+        # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
+        subprocess.kill()
+        await subprocess.wait()
+        process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
+        process.set_finish()
+        return None
+
+    # PID получен – процесс считается запущенным
+    process.status = 'running'  # PROCESS_STATUSES_RUNNING
+    logger.info("Process '%s' запущен на %s с PID %d", process.process_id, process.host, pid)
+
+    # НЕ ждём завершения ssh-процесса – он отсоединён и будет жить сам.
+    return None

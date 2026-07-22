@@ -397,7 +397,7 @@ class Process(BaseModel):
             self._original.update({field_name:getattr(self, field_name)})
         return None
 
-    def _set_finish(
+    def set_finish(
                     self
                    ) -> None:
         """
@@ -424,7 +424,7 @@ class Process(BaseModel):
             """
             if self.exitcode_f.exists():
                 try:
-                    self._set_finish()
+                    self.set_finish()
                     with open(self.exitcode_f, 'r') as f:
                         exitcode = f.readline()
                     if is_integer(exitcode):
@@ -662,10 +662,10 @@ class Process(BaseModel):
             self.exitcode_f.unlink(missing_ok=True)
 
         self.status = 'running' # PROCESS_STATUSES_RUNNING
-        asyncio.create_task(run_ssh_shell_detached(process=self))
+        await run_ssh_shell_detached(process=self)
         # Если процесс запущен неудачно - фиксируем время завершения
         if self.status not in PROCESS_STATUSES_RUNNING:
-            self._set_finish()
+            self.set_finish()
         return None
 
     async def terminate(
@@ -755,4 +755,4 @@ class Process(BaseModel):
                 self.process_id, elapsed, self.timeout
             )
             await self.terminate(reason='timeout')
-            self._set_finish()
+            self.set_finish()
