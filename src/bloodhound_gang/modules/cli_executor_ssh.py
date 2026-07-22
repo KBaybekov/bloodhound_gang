@@ -77,11 +77,21 @@ async def run_ssh_shell_detached(process: Process) -> None:
     try:
         # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
+        """
         subprocess = await asyncio.create_subprocess_exec(
             *ssh_cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            env=process.env,
+            start_new_session=True   # чтобы процесс стал лидером сессии
+        )
+        """
+        subprocess = await asyncio.create_subprocess_exec(
+            *ssh_cmd,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=None,
             env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
@@ -106,7 +116,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
                                    process.process_id, pid_str)
             except Exception:
                 logger.exception("Process '%s': ошибка чтения pid-файла", process.process_id)
-        """
+        
     else:
         if not process.pid_f.exists():
             # Таймаут ожидания pid-файла
@@ -136,6 +146,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return None
+    """
 
     
     # PID получен – процесс считается запущенным
