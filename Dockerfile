@@ -36,8 +36,8 @@ COPY \
 --exclude=logs/ \
 . . 
 
-#RUN chmod -R a+rX /home/bloodhound_gang && \
-#    chmod 777 /home/bloodhound_gang/.cache /home/bloodhound_gang/.local 2>/dev/null || true
+RUN chmod -R a+rX /bloodhound_gang && \
+    chmod 777 /bloodhound_gang/.cache /bloodhound_gang/.local 2>/dev/null || true
 
 EXPOSE 8000
 #COPY entrypoint.sh /entrypoint.sh

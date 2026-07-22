@@ -347,16 +347,12 @@ class Process(BaseModel):
         return doc
 
     @model_validator(mode='after')
-    def set_work_objects(self) -> 'Process':
-        self.exitcode_f = self.work_d / f"{self.task_id}.exitcode"
-        self.stdout_f = self.work_d / f"{self.task_id}.out"
-        self.stderr_f = self.work_d / f"{self.task_id}.err"
-        return self
-
-    @model_validator(mode='after')
     def set_log_objs(self) -> 'Process':
         self.log_d = self.work_d / 'logs'
         self.log_f = self.log_d / f'{self.task_id}_nextflow.log'
+        self.exitcode_f = self.log_d / f"{self.task_id}.exitcode"
+        self.stdout_f = self.log_d / f"{self.task_id}.out"
+        self.stderr_f = self.log_d / f"{self.task_id}.err"
         return self
 
     @field_validator('status')
@@ -675,69 +671,92 @@ class Process(BaseModel):
         """
         Завершает процесс по сохранённому PID (self.pid_f).
         Сначала посылает SIGTERM, ждёт до 15 секунд, затем SIGKILL.
+        При любом исходе очищает pid-файл и гарантирует наличие exitcode.
         Безопасна при уже завершённом процессе.
         """
         if self.pid_f is None:
             logger.warning("No PID to terminate for process %s", self.process_id)
-            return
-        if self.host is not None:
+            return None
+        if self.host is None:
+            logger.warning("Process '%s': host не указан", self.process_id)
+            return None
+        try:
             try:
-                try:
-                    pid = int(self.pid_f.read_text().strip())
-                    logger.debug("Process '%s': Terminating PID %d on host %s", self.process_id, pid, self.host)
-                except (ValueError, OSError):
-                    logger.exception("Process '%s': Не удалось прочитать PID из %s", self.process_id, self.pid_f)
-                    self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
-                    return
-                    # Отправляем SIGTERM через ssh
-                try:
-                    subproc = await asyncio.wait_for(
-                                                     asyncio.create_subprocess_exec(
-                                                            'ssh', self.host, f'kill -TERM {pid}',
-                                                            stdout=asyncio.subprocess.DEVNULL,
-                                                            stderr=asyncio.subprocess.DEVNULL),
-                                                     timeout=10
-                                                    )
-                    await subproc.wait()
+                pid = int(self.pid_f.read_text().strip())
+                logger.debug("Process '%s': Terminating PID %d on host %s", self.process_id, pid, self.host)
+            except (ValueError, OSError):
+                logger.exception("Process '%s': Не удалось прочитать PID из %s", self.process_id, self.pid_f)
+                self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
+                await self._cleanup_pid_and_exitcode(reason)
+                return
+                # Отправляем SIGTERM через ssh
+            try:
+                subproc = await asyncio.wait_for(
+                                                    asyncio.create_subprocess_exec(
+                                                        'ssh', self.host, f'kill -TERM {pid}',
+                                                        stdout=asyncio.subprocess.DEVNULL,
+                                                        stderr=asyncio.subprocess.DEVNULL),
+                                                    timeout=10
+                                                )
+                await subproc.wait()
 
-                    logger.info("Process '%s': Отправлен SIGTERM процессу %d на %s", self.process_id, pid, self.host)
-                except Exception:
-                    logger.exception("Process '%s': Ошибка при отправке SIGTERM.", self.process_id)
-                logger.debug("Process '%s': sent SIGTERM to PID %d", self.process_id, pid)
-
-                await asyncio.sleep(5)
-
-                # PID файл исчезает при завершении процесса; проверяем его наличие
-                if self.pid_f.exists():
-                    try:
-                        still_alive = int(self.pid_f.read_text().strip()) == pid
-                    except Exception:
-                        still_alive = False
-                    if still_alive:
-                        logger.debug("Process '%s': Sending SIGKILL to PID %d", self.process_id, pid)
-                        # SIGKILL
-                        try:
-                            subproc = await asyncio.wait_for(
-                                                     asyncio.create_subprocess_exec(
-                                                            'ssh', self.host, f'kill -KILL {pid}',
-                                                            stdout=asyncio.subprocess.DEVNULL,
-                                                            stderr=asyncio.subprocess.DEVNULL),
-                                                     timeout=10
-                                                    )
-                            await subproc.wait()
-
-                            logger.warning("Process '%s' %d on %s killed forcibly (SIGKILL)", self.process_id, pid, self.host)
-                        except Exception:
-                            logger.exception("Process '%s': Ошибка при отправке SIGKILL.", self.process_id)
-                    else:
-                        logger.debug("Process '%s': Процесс %d уже завершён.", self.process_id, pid)
-                        self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
-                else:
-                    logger.debug("Process '%s': PID-файл исчез, процесс завершился.", self.process_id)
-                    self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
-
+                logger.info("Process '%s': Отправлен SIGTERM процессу %d на %s", self.process_id, pid, self.host)
             except Exception:
-                logger.exception("Process '%s': Error during terminating subprocess.", self.process_id)
+                logger.exception("Process '%s': Ошибка при отправке SIGTERM.", self.process_id)
+
+            await asyncio.sleep(5)
+
+            # PID файл исчезает при завершении процесса; проверяем его наличие
+            if self.pid_f.exists():
+                try:
+                    still_alive = int(self.pid_f.read_text().strip()) == pid
+                except Exception:
+                    still_alive = False
+                if still_alive:
+                    logger.debug("Process '%s': Sending SIGKILL to PID %d", self.process_id, pid)
+                    # SIGKILL
+                    try:
+                        subproc = await asyncio.wait_for(
+                                                    asyncio.create_subprocess_exec(
+                                                        'ssh', self.host, f'kill -KILL {pid}',
+                                                        stdout=asyncio.subprocess.DEVNULL,
+                                                        stderr=asyncio.subprocess.DEVNULL),
+                                                    timeout=10
+                                                )
+                        await subproc.wait()
+
+                        logger.warning("Process '%s' %d on %s killed forcibly (SIGKILL)", self.process_id, pid, self.host)
+                    except Exception:
+                        logger.exception("Process '%s': Ошибка при отправке SIGKILL.", self.process_id)
+                else:
+                    logger.debug("Process '%s': Процесс %d уже завершён.", self.process_id, pid)
+                    self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
+                # В любом случае очищаем pid и фиксируем exitcode
+                await self._cleanup_pid_and_exitcode(reason)
+            else:
+                logger.debug("Process '%s': PID-файл исчез, процесс завершился.", self.process_id)
+                self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
+                await self.check_running()   # соберёт статус из exitcode
+                # Если check_running не изменил статус (например, exitcode нет), ставим cancelled
+                if self.status not in PROCESS_STATUSES_FINISHED:
+                    self.status = f'cancelled[{reason}]'
+                    self.set_finish()
+
+        except Exception:
+            logger.exception("Process '%s': Error during terminating subprocess.", self.process_id)
+
+    async def _cleanup_pid_and_exitcode(self, reason: str) -> None:
+        """Удаляет pid-файл и записывает exitcode, если его ещё нет."""
+        if self.pid_f and self.pid_f.exists():
+            await asyncio.to_thread(self.pid_f.unlink, missing_ok=True)
+        if not self.exitcode_f.exists():
+            try:
+                await asyncio.to_thread(self.exitcode_f.write_text, '-9')   # признак принудительного убийства
+            except Exception:
+                logger.exception("Не удалось записать exitcode-файл")
+        self.set_finish()
+        self.status = f'cancelled[{reason}]'
+        return None
 
     async def check_timeout(self) -> None:
         """

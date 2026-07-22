@@ -1,6 +1,5 @@
 services:
   bloodhound_gang:
-    build: .
     image: kbaybekov/bloodhound_gang:latest
     container_name: bloodhound_gang
     restart: unless-stopped
@@ -17,6 +16,8 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - ${SSH_AUTH_SOCK}:/ssh-auth.sock:ro
+      - ./.docker-passwd:/etc/passwd:ro
+      - ./.docker-group:/etc/group:ro
       # SSH-ключи (read-only)
       #- ${HOME}/.ssh:/bloodhound_gang/.ssh:ro
 

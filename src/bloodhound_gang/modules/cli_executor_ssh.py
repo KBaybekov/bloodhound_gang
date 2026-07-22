@@ -47,13 +47,29 @@ async def run_ssh_shell_detached(process: Process) -> None:
             return
 
     # Пути к PID-файлу
-    process.pid_f = process.work_d / "process.pid"
+    process.pid_f = process.log_d / "process.pid"
     
     # Формируем удалённую команду (без exec!):
     # 1. Записываем PID текущей оболочки в pid_file.
     # 2. Выполняем основную команду, перенаправляя stdout/stderr.
     # 3. После её завершения записываем exit code в exitcode_file.
     # Используем sh -c для корректной обработки составной команды.
+    # Экранированные пути
+    pid_file = shlex.quote(str(process.pid_f))
+    stdout_file = shlex.quote(str(process.stdout_f))
+    stderr_file = shlex.quote(str(process.stderr_f))
+    exitcode_file = shlex.quote(str(process.exitcode_f))
+
+    # Удалённая команда с trap для удаления pid-файла
+    remote_cmd = (
+        f"PIDFILE={pid_file}; "
+        f"echo $$ > $PIDFILE && "
+        f"trap 'rm -f $PIDFILE' EXIT; "
+        f"( {process.shell_command} ) > {stdout_file} "
+        f"2> {stderr_file}; "
+        f"echo $? > {exitcode_file}"
+    )
+    
     remote_cmd_parts = [
         "sh", "-c",
         f"echo $$ > {shlex.quote(str(process.pid_f))} && "
@@ -63,15 +79,14 @@ async def run_ssh_shell_detached(process: Process) -> None:
     # Собираем аргументы для локального ssh
     ssh_cmd = [
         "ssh",
-        "-tt",
-#        "-o", "ForwardAgent=yes",          # использовать агент хоста
+        "-o", "UserKnownHostsFile=/tmp/known_hosts",          # использовать агент хоста
         "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",         # таймаут на подключение
         "-o", "StrictHostKeyChecking=accept-new",  # для новых хостов (можно убрать в проде)
         f"{SSH_USER}@{process.host}",
-        *remote_cmd_parts                  # передаём как отдельные аргументы
+        *remote_cmd                  # передаём как отдельные аргументы
     ]
     # Логируем команду
-    with open(process.work_d / 'command.sh', 'w') as f:
+    with open(process.log_d / 'command.sh', 'w') as f:
         f.write(' \\\n'.join(ssh_cmd) + '\n')
     logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
@@ -156,3 +171,21 @@ async def run_ssh_shell_detached(process: Process) -> None:
 
     # НЕ ждём завершения ssh-процесса – он отсоединён и будет жить сам.
     return None
+
+"""
+# тут всё отлично, только убийство оболочки не создаёт экзиткод
+ssh \
+-o UserKnownHostsFile=/tmp/known_hosts \
+-o ConnectTimeout=10 \
+-o StrictHostKeyChecking=accept-new \
+kbajbekov@vu10-2-030 \
+"bash -c \
+'PIDFILE=/mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/process.pid; \
+echo \$\$ > \${PIDFILE} \
+&& \
+trap \"rm -f \${PIDFILE}\" EXIT; \
+( sleep 60 ) \
+> /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.out \
+2> /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.err; \
+echo \$? > /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.exitcode'"
+"""
