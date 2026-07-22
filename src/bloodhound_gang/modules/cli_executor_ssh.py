@@ -66,7 +66,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
     "\"bash -c "
     f"'echo \\$\\$ > {pid_file} "
     "&& "
-    f"trap \"rm -f {pid_file}\" EXIT; "
+    f"trap \\\"rm -f {pid_file}\" EXIT; "
     f"( {process.shell_command} ) "
     f"> {stdout_file} "
     f"2> {stderr_file}; "
