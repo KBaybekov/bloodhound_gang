@@ -92,31 +92,28 @@ async def run_ssh_shell_detached(process: Process) -> None:
 
     # 1. Формируем чистую внутреннюю Bash-команду БЕЗ хардкодных внешних кавычек.
     # Используем логику образца с переменной PIDFILE, чтобы избежать дублирования путей.
-    bash_inner_script = (
-        f"PIDFILE={pid_file}; "
-        "echo $$ > ${PIDFILE} && "
-        'trap "rm -f ${PIDFILE}" EXIT; '
-        f"( {process.shell_command} ) > {stdout_file} 2> {stderr_file}; "
-        f"echo $? > {exitcode_file}"
-    )
-
-    # Передаем bash -c и внутренний скрипт как ОДИН аргумент для SSH.
-    # Обратите внимание: для корректного парсинга удаленным SSH, весь внутренний bash-скрипт 
-    # оборачивается в одинарные кавычки.
-    remote_cmd = f"bash -c '{bash_inner_script}'"
-
-    # 2. Собираем аргументы для SSH (объединяем '-o' с их значениями ради красивого лога)
     ssh_cmd = [
-        "ssh",
-        "-o UserKnownHostsFile=/tmp/known_hosts",
-        f"-o ConnectTimeout={SSH_CONNECT_TIMEOUT}",
-        "-o StrictHostKeyChecking=accept-new",
-        f"{SSH_USER}@{process.host}",
-        remote_cmd
-    ]
+    "ssh",
+    "-o UserKnownHostsFile=/tmp/known_hosts",
+    f"-o ConnectTimeout={SSH_CONNECT_TIMEOUT}",
+    "-o StrictHostKeyChecking=accept-new",
+    f"{SSH_USER}@{process.host}",
+    (
+        "\"bash -c \\\n"
+        f"'PIDFILE={pid_file}; \\\n"
+        "echo \\$\\$ > \\${PIDFILE} \\\n"
+        "&& \\\n"
+        "trap \\\"rm -f \\${PIDFILE}\\\" EXIT; \\\n"
+        f"( {process.shell_command} ) \\\n"
+        f"> {stdout_file} \\\n"
+        f"2> {stderr_file}; \\\n"
+        f"echo \\$? > {exitcode_file}'\""
+    )
+]
 
     # 3. Запись в command.sh в точном соответствии с вашим образцом (с переносами строк)
-    with open('command.sh', 'w') as f:
+    # Логируем команду
+    with open(process.log_d / 'command.sh', 'w') as f:
         f.write(' \\\n'.join(ssh_cmd) + '\n')
 
     # 4. Асинхронный запуск. 
@@ -129,9 +126,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         else:
             final_exec_args.append(arg)
 
-    # Логируем команду
-    with open(process.log_d / 'command.sh', 'w') as f:
-        f.write(' \\\n'.join(ssh_cmd) + '\n')
+    
     logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
     try:
