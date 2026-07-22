@@ -55,27 +55,31 @@ async def run_ssh_shell_detached(process: Process) -> None:
     # 3. После её завершения записываем exit code в exitcode_file.
     # Используем sh -c для корректной обработки составной команды.
     # Экранированные пути
-    pid_file = shlex.quote(str(process.pid_f))
-    stdout_file = shlex.quote(str(process.stdout_f))
-    stderr_file = shlex.quote(str(process.stderr_f))
-    exitcode_file = shlex.quote(str(process.exitcode_f))
+    #pid_file = shlex.quote(str(process.pid_f))
+    #stdout_file = shlex.quote(str(process.stdout_f))
+    #stderr_file = shlex.quote(str(process.stderr_f))
+    #exitcode_file = shlex.quote(str(process.exitcode_f))
 
     # Удалённая команда с trap для удаления pid-файла
+
     remote_cmd = [
-        f"PIDFILE={pid_file}; ",
-        "echo $$ > $PIDFILE && ",
-        "trap 'rm -f $PIDFILE' EXIT; ",
-        f"( {process.shell_command} ) > {stdout_file} ",
-        f"2> {stderr_file}; ",
-        f"echo $? > {exitcode_file}"
-    ]
+    "bash -c "
+    f"'PIDFILE={process.pid_f.as_posix()}; "
+    "echo $$ > ${PIDFILE} "
+    "&& "
+    "trap \"rm -f ${PIDFILE}\" EXIT; "
+    f"( {process.shell_command} ) "
+    f"> {process.stdout_f.as_posix()} "
+    f"2> {process.stderr_f.as_posix()}; "
+    f"echo $? > {process.exitcode_f.as_posix()}'"
+]
     
-    remote_cmd_parts = [
+    """remote_cmd_parts = [
         "sh", "-c",
         f"echo $$ > {shlex.quote(str(process.pid_f))} && "
         f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
         f"echo $? > {shlex.quote(str(process.exitcode_f))}"
-    ]
+    ]"""
     # Собираем аргументы для локального ssh
     ssh_cmd = [
         "ssh",
