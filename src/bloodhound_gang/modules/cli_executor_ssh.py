@@ -56,9 +56,9 @@ async def run_ssh_shell_detached(process: Process) -> None:
     # Используем sh -c для корректной обработки составной команды.
     remote_cmd_parts = [
         "sh", "-c",
-        f"echo $$ > {shlex.quote(str(process.pid_f))} && "
+        f"echo \\$\\$ > {shlex.quote(str(process.pid_f))} && "
         f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
-        f"echo $? > {shlex.quote(str(process.exitcode_f))}"
+        f"echo \\$? > {shlex.quote(str(process.exitcode_f))}"
     ]
     # Собираем аргументы для локального ssh
     ssh_cmd = [
