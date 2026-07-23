@@ -180,7 +180,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            env=process.env,
+            #env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
         # Асинхронно отправляем скрипт в stdin ssh
