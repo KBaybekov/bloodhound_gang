@@ -122,20 +122,25 @@ async def run_ssh_shell_detached(process: Process) -> None:
         f"(\n{process.shell_command}\n) > {shlex.quote(stdout_file)} 2> {shlex.quote(stderr_file)}\n"
         f"echo $? > {shlex.quote(exitcode_file)}\n"
     )
+    remote_cmd_f = process.log_d / f"{process.nextflow_id}_remote_cmd.sh"
+
+    # Кодируем скрипт в base64 для безопасной передачи как аргумент SSH
+    import base64
+    encoded_script = base64.b64encode(remote_script.encode()).decode()
 
     # Запускаем ssh, передавая скрипт через stdin
     ssh_cmd = [
         "ssh",
-        "-T",
         "-o", "UserKnownHostsFile=/tmp/known_hosts",
         "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
         "-o", "StrictHostKeyChecking=accept-new",
-        f"{SSH_USER}@{process.host}"
+        f"{SSH_USER}@{process.host}",
+        f"echo {shlex.quote(encoded_script)} | base64 -d | bash"
     ]
 
     # 3. Запись в command.sh
     process.command_f = process.log_d / f"{process.nextflow_id}_command.sh"
-    remote_cmd_f = process.log_d / f"{process.nextflow_id}_remote_cmd.sh"
+    
     try:
         await write_file_async(
                                file=remote_cmd_f,
@@ -177,11 +182,11 @@ async def run_ssh_shell_detached(process: Process) -> None:
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
         # Асинхронно отправляем скрипт в stdin ssh
-        if subprocess.stdin:
+        """if subprocess.stdin:
             #subprocess.stdin.write(remote_script.encode())
             subprocess.stdin.write(f"bash {remote_cmd_f.as_posix()}\n".encode('utf-8'))
             await subprocess.stdin.drain()
-            subprocess.stdin.close()
+            subprocess.stdin.close()"""
 
     except Exception:
         logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
