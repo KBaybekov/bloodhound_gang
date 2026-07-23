@@ -562,7 +562,7 @@ class Process(BaseModel):
                                                                        )
                 cmd_vars.update({'nxf_cfg_organisation':self.nxf_cfg_organisation_f.as_posix()})
             else:
-                nxf_cmd = nxf_cmd.replace(' -c {{ nxf_cfg_organisation }}', '', 1)
+                nxf_cmd = nxf_cmd.replace('-c {{ nxf_cfg_organisation }}', '', 1)
                 del cmd_vars['nxf_cfg_organisation']
 
             if self.nxf_cfg_pipeline_f:
@@ -573,7 +573,7 @@ class Process(BaseModel):
                                                                     )
                 cmd_vars.update({'nxf_cfg_pipeline':self.nxf_cfg_pipeline_f.as_posix()})
             else:
-                nxf_cmd = nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
+                nxf_cmd = nxf_cmd.replace('-c {{ nxf_cfg_pipeline }}', '', 1)
                 del cmd_vars['nxf_cfg_pipeline']
         except Exception:
             logger.exception("Process '%s': Не удалось создать файлы конфигурации в рабочей папке процесса.", self.process_id)
@@ -616,7 +616,7 @@ class Process(BaseModel):
                                          template=nxf_cmd,
                                          data=sanitized,
                                          strict=True
-                                        )
+                                        ).strip()
         self.shell_command = "sleep 60" # !!! TEST
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
         return None
