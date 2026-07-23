@@ -300,7 +300,7 @@ class Process(BaseModel):
                              'queue': task.queue,
                              'pipeline': task.pipeline,
                              'nxf_cfg_organisation_f':task.nxf_cfg_organisation,
-                             'nxf_cfg_pipeline_f':task.nxf_cfg_pipeline,
+                             'nxf_cfg_pipeline_f':task.nxf_cfg_pipeline_f,
                              'result_factory': task.result_factory,
                              'timeout': dehumanize_timedelta_to_seconds(task.timeout)
                             })

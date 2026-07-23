@@ -14,6 +14,6 @@ tasks:
     gpus: 1
   timeout: '1D'
   priority: true
-  nxf_cfg_pipeline: 'basecalling_basic/nxf_basecalling.config' # может быть null
+  nxf_cfg_pipeline_f: 'basecalling_basic/nxf_basecalling.config' # может быть null
   process_factory: 'basecalling_basic/process_factory.py'
   result_factory: 'basecalling_basic/result_factory.py'

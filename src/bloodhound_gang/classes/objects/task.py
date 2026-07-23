@@ -82,7 +82,7 @@ class Task(BaseModel):
                            default=False,
                            description="Флаг, указывающий на то, что процессы этого должны быть выполнены в приоритетном порядке"
                           )
-    nxf_cfg_pipeline: Path|None = Field(
+    nxf_cfg_pipeline_f: Path|None = Field(
                                         default=None,
                                         description="Конфиг Nextflow с параметрами пайплайна"
                                        ) 
@@ -135,12 +135,12 @@ class Task(BaseModel):
             result_factory_rel:str = data['result_factory']
             result_factory_str = (task_path / result_factory_rel).as_posix() + ':result_factory()'
             process_factory = load_callable(process_factory_str)
-            # Формируем путь для nxf_cfg_pipeline
-            nxf_cfg_pipeline_rel:str|None = data.get('nxf_cfg_pipeline', None)
-            if nxf_cfg_pipeline_rel:
-                nxf_cfg_pipeline = task_path / nxf_cfg_pipeline_rel
+            # Формируем путь для nxf_cfg_pipeline_f
+            nxf_cfg_pipeline_f_rel:str|None = data.get('nxf_cfg_pipeline_f', None)
+            if nxf_cfg_pipeline_f_rel and nxf_cfg_pipeline_f_rel != 'null':
+                nxf_cfg_pipeline_f = task_path / nxf_cfg_pipeline_f_rel
             else:
-                nxf_cfg_pipeline = Path('/dev/null')
+                nxf_cfg_pipeline_f = None
             task_load = data.get('load', {})
 
             load = TaskLoad(**task_load)
@@ -152,7 +152,7 @@ class Task(BaseModel):
                          'db_query':db_query,
                          'process_factory':process_factory,
                          'result_factory':result_factory_str,
-                         'nxf_cfg_pipeline': nxf_cfg_pipeline,
+                         'nxf_cfg_pipeline_f': nxf_cfg_pipeline_f,
                          'load': load
                         })
 
@@ -187,7 +187,7 @@ class Task(BaseModel):
 
         logger = get_logger(__name__)
         # Атрибуты, содержащие пути к файлам
-        file_attrs = ['nxf_cfg_pipeline', 'process_factory', 'result_factory']
+        file_attrs = ['nxf_cfg_pipeline_f', 'process_factory', 'result_factory']
         text_params_to_hash = ['pipeline', 'environment_variables']
 
         # Читаем TSV/CSV, определяем разделитель
