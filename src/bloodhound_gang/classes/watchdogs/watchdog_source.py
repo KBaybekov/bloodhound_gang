@@ -129,7 +129,7 @@ class WatchdogSource(WatchdogBasic):
         self.samples_in_filesystem_found = 0
         new_tree = {
                     "root_path": self.source_folder,
-                    "tree": asyncio.to_thread(
+                    "tree": await asyncio.to_thread(
                                               self._scan_directory,
                                               path=self.source_folder,
                                               current_depth=-1
