@@ -129,8 +129,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         "-o", "UserKnownHostsFile=/tmp/known_hosts",
         "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
         "-o", "StrictHostKeyChecking=accept-new",
-        f"{SSH_USER}@{process.host}",
-        "bash"
+        f"{SSH_USER}@{process.host}"
     ]
 
     # 3. Запись в command.sh
