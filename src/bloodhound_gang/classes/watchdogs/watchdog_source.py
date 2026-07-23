@@ -129,10 +129,11 @@ class WatchdogSource(WatchdogBasic):
         self.samples_in_filesystem_found = 0
         new_tree = {
                     "root_path": self.source_folder,
-                    "tree": self._scan_directory(
-                                                path=self.source_folder,
-                                                current_depth=-1
-                                                )
+                    "tree": asyncio.to_thread(
+                                              self._scan_directory,
+                                              path=self.source_folder,
+                                              current_depth=-1
+                                             )
                 }
         self.logger.debug('Found %d objects on sample depth', self.samples_in_filesystem_found)
         if old_tree is None:

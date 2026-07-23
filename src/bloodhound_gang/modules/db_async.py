@@ -826,7 +826,7 @@ class ConfigurableMongoDAO:
         if self._client is not None:
             logger.debug("Закрытие соединения с MongoDB...")
             await self._client.close()
-            self._client = AsyncMongoClient()  # заменяем на пустой, чтобы избежать повторного close()
+            self._client = None
             logger.debug("Соединение с MongoDB закрыто")
 
         logger.info("ConfigurableMongoDAO остановлен корректно")

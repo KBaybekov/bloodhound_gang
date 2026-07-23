@@ -312,6 +312,7 @@ class Process(BaseModel):
                        tags=tags,
                        task_id=task_id,
                        weight=weight,
+                       created=get_now_time(),
                        **process_data
                       )
     
@@ -353,11 +354,17 @@ class Process(BaseModel):
 
     @model_validator(mode='after')
     def set_log_objs(self) -> 'Process':
-        self.log_d = self.work_d / 'logs'
-        self.log_f = self.log_d / f'{self.task_id}_nextflow.log'
-        self.exitcode_f = self.log_d / f"{self.task_id}.exitcode"
-        self.stdout_f = self.log_d / f"{self.task_id}.out"
-        self.stderr_f = self.log_d / f"{self.task_id}.err"
+        attrs_n_paths = {
+                         'log_d': self.work_d / 'logs',
+                         'log_f': self.log_d / f'{self.task_id}_nextflow.log',
+                         'exitcode_f': self.log_d / f"{self.task_id}.exitcode",
+                         'stdout_f': self.log_d / f"{self.task_id}.out",
+                         'stderr_f': self.log_d / f"{self.task_id}.err"
+                        }
+        for attr, path in attrs_n_paths.items():
+            # если к нам попал Process из БД с выставленными путями, не трогаем их
+            if getattr(self, attr) == '/dev/null':
+                setattr(self, attr, path)
         return self
 
     @field_validator('status')
@@ -554,7 +561,7 @@ class Process(BaseModel):
                                                                        )
                 cmd_vars.update({'nxf_cfg_organisation':self.nxf_cfg_organisation_f.as_posix()})
             else:
-                nxf_cmd.replace(' -c {{ nxf_cfg_organisation }}', '', 1)
+                nxf_cmd = nxf_cmd.replace(' -c {{ nxf_cfg_organisation }}', '', 1)
                 del cmd_vars['nxf_cfg_organisation']
 
             if self.nxf_cfg_pipeline_f:
@@ -565,7 +572,7 @@ class Process(BaseModel):
                                                                     )
                 cmd_vars.update({'nxf_cfg_pipeline':self.nxf_cfg_pipeline_f.as_posix()})
             else:
-                nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
+                nxf_cmd = nxf_cmd.replace(' -c {{ nxf_cfg_pipeline }}', '', 1)
                 del cmd_vars['nxf_cfg_pipeline']
         except Exception:
             logger.exception("Process '%s': Не удалось создать файлы конфигурации в рабочей папке процесса.", self.process_id)

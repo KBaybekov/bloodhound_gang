@@ -56,7 +56,7 @@ async def main():
     # DAO инициализируем в отдельном потоке, чтобы не блокироваться
     try:
         logger.debug("Starting DAO...")
-        dao = await asyncio.to_thread(ConfigurableMongoDAO)
+        dao = ConfigurableMongoDAO()
         await dao.init_dao()
         logger.debug("DAO OK")
     except Exception as e:
