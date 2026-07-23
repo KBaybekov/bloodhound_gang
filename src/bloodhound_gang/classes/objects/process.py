@@ -616,7 +616,7 @@ class Process(BaseModel):
                                          template=nxf_cmd,
                                          data=sanitized,
                                          strict=True
-                                        ).strip()
+                                        ).strip().replace("  ", " ")
         self.shell_command = "sleep 60" # !!! TEST
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
         return None

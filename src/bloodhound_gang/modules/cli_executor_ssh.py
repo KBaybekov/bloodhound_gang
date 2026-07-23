@@ -135,7 +135,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
         "-o", "StrictHostKeyChecking=accept-new",
         f"{SSH_USER}@{process.host}",
-        f"echo {shlex.quote(encoded_script)} | base64 -d | bash"
+        f"'echo {shlex.quote(encoded_script)} | base64 -d | bash'"
     ]
 
     # 3. Запись в command.sh
