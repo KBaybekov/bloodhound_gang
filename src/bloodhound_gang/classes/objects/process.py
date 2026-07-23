@@ -355,12 +355,13 @@ class Process(BaseModel):
     @model_validator(mode='after')
     def set_log_objs(self) -> 'Process':
         attrs_n_paths = {
-                         'log_d': self.work_d / 'logs',
                          'log_f': self.log_d / f'{self.task_id}_nextflow.log',
                          'exitcode_f': self.log_d / f"{self.task_id}.exitcode",
                          'stdout_f': self.log_d / f"{self.task_id}.out",
                          'stderr_f': self.log_d / f"{self.task_id}.err"
                         }
+        if getattr(self, 'log_d') == '/dev/null':
+                        setattr(self, 'log_d', self.work_d / 'logs')
         for attr, path in attrs_n_paths.items():
             # если к нам попал Process из БД с выставленными путями, не трогаем их
             if getattr(self, attr) == '/dev/null':
