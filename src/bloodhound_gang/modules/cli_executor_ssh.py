@@ -91,6 +91,8 @@ async def run_ssh_shell_detached(process: Process) -> None:
         f"echo $? > {shlex.quote(str(process.exitcode_f))}"
     ]"""
 
+
+    """
     # 1. Формируем чистую внутреннюю Bash-команду БЕЗ хардкодных внешних кавычек.
     # Используем логику образца с переменной PIDFILE, чтобы избежать дублирования путей.
     ssh_cmd = [
@@ -110,14 +112,38 @@ async def run_ssh_shell_detached(process: Process) -> None:
         f"2> {stderr_file}; \\\n"
         f"echo \\$? > {exitcode_file}'\""
     )
-]
+    ]"""
+
+    # 1. Формируем чистый bash-скрипт для удалённого выполнения
+    remote_script = (
+        f"PIDFILE={shlex.quote(pid_file)}\n"
+        "echo $$ > ${PIDFILE}\n"
+        "trap \"rm -f ${PIDFILE}\" EXIT\n"
+        f"(\n{process.shell_command}\n) > {shlex.quote(stdout_file)} 2> {shlex.quote(stderr_file)}\n"
+        f"echo $? > {shlex.quote(exitcode_file)}\n"
+    )
+
+    # Запускаем ssh, передавая скрипт через stdin
+    ssh_cmd = [
+        "ssh",
+        "-o", "UserKnownHostsFile=/tmp/known_hosts",
+        "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
+        "-o", "StrictHostKeyChecking=accept-new",
+        f"{SSH_USER}@{process.host}",
+        "bash"
+    ]
 
     # 3. Запись в command.sh
     process.command_f = process.log_d / f"{process.nextflow_id}_command.sh"
+    remote_cmd_f = process.log_d / f"{process.nextflow_id}_remote_cmd.sh"
     try:
         await write_file_async(
+                               file=remote_cmd_f,
+                               content=remote_script
+                              )
+        await write_file_async(
                                file=process.command_f,
-                               content=' \\\n'.join(ssh_cmd) + '\n'
+                               content=' \\\n'.join(ssh_cmd + [remote_cmd_f.as_posix()]) + '\n'
                               )
     except Exception:
         logger.error("Process '%s': не удалось сформировать command.sh %s", process.process_id)
@@ -135,7 +161,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         else:
             final_exec_args.append(arg)
     """
-    exec_cmd = ['bash', process.command_f]
+    #exec_cmd = ['bash', process.command_f]
     
     logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
@@ -143,13 +169,18 @@ async def run_ssh_shell_detached(process: Process) -> None:
         # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
         subprocess = await asyncio.create_subprocess_exec(
-            *exec_cmd,
-            stdin=asyncio.subprocess.DEVNULL,
+            *ssh_cmd,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
             env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
+        # Асинхронно отправляем скрипт в stdin ssh
+        if subprocess.stdin:
+            subprocess.stdin.write(remote_script.encode())
+            await subprocess.stdin.drain()
+            subprocess.stdin.close()
 
     except Exception:
         logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
