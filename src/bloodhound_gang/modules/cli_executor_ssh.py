@@ -178,7 +178,8 @@ async def run_ssh_shell_detached(process: Process) -> None:
         )
         # Асинхронно отправляем скрипт в stdin ssh
         if subprocess.stdin:
-            subprocess.stdin.write(remote_script.encode())
+            #subprocess.stdin.write(remote_script.encode())
+            subprocess.stdin.write(f"bash {remote_cmd_f.as_posix()}\n".encode('utf-8'))
             await subprocess.stdin.drain()
             subprocess.stdin.close()
 
