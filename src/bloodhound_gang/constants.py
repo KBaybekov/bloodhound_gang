@@ -99,6 +99,7 @@ PROCESS_STATUSES_PLANNED = {'scheduled', 'cancelled[system_interrupt]'} # пре
 PROCESS_STATUSES_RUNNING = {'running'}
 PROCESS_STATUSES_FINISH_OK = {'completed'}
 PROCESS_STATUSES_FINISH_FAIL = {
+                                'failed[bad_command_file]',
                                 'failed[bad_exitcode]',
                                 'failed[bad_processing]',
                                 'failed[bad_pidfile]',

@@ -4,6 +4,7 @@ import asyncio
 import shlex
 from constants import SSH_USER, request_env_variable
 from classes.objects.process import Process
+from modules.utils import write_file_async
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -111,11 +112,19 @@ async def run_ssh_shell_detached(process: Process) -> None:
     )
 ]
 
-    # 3. Запись в command.sh в точном соответствии с вашим образцом (с переносами строк)
-    # Логируем команду
-    with open(process.log_d / 'command.sh', 'w') as f:
-        f.write(' \\\n'.join(ssh_cmd) + '\n')
-
+    # 3. Запись в command.sh
+    process.command_f = process.log_d / f"{process.nextflow_id}_command.sh"
+    try:
+        await write_file_async(
+                               file=process.command_f,
+                               content=' \\\n'.join(ssh_cmd) + '\n'
+                              )
+    except Exception:
+        logger.error("Process '%s': не удалось сформировать command.sh %s", process.process_id)
+        process.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
+        process.set_finish()
+        return None
+    """
     # 4. Асинхронный запуск. 
     # Перед передачей в create_subprocess_exec нам нужно разбить строки вида "-o Key=Value", 
     # так как subprocess требует строго раздельные аргументы.
@@ -125,7 +134,8 @@ async def run_ssh_shell_detached(process: Process) -> None:
             final_exec_args.extend(["-o", arg[3:]])
         else:
             final_exec_args.append(arg)
-
+    """
+    exec_cmd = ['bash', process.command_f]
     
     logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
@@ -133,7 +143,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
         subprocess = await asyncio.create_subprocess_exec(
-            *ssh_cmd,
+            *exec_cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
@@ -141,8 +151,8 @@ async def run_ssh_shell_detached(process: Process) -> None:
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
 
-    except Exception as e:
-        logger.exception("Process '%s': не удалось запустить ssh-подпроцесс: %s", process.process_id, e)
+    except Exception:
+        logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
         process.status = 'failed[no_subprocess]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return None

@@ -696,6 +696,24 @@ async def copy_file_async(
         raise
     return new_path
 
+async def write_file_async(
+                           file:Path,
+                           content
+                          ) -> Path:
+    """
+    Асинхронно записывает данные в файл
+    """
+    try:
+        async with aiofiles.open(file, mode='w') as f:
+            await f.write(content)
+    except IOError:
+        logger.exception("Ошибка при записи файла.")
+        raise
+    except Exception:
+        logger.exception("Непредвиденная ошибка при записи файла")
+        raise
+    return file
+
 '''
 def validate_nextflow_run_name(name: str) -> None:
     """

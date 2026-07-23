@@ -6,3 +6,4 @@ logs/
 .vscode/
 *.pyc
 src/bloodhound_gang/useful_scripts/mongo_connect.py
+src/content.txt

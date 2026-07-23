@@ -141,13 +141,14 @@ def pymongo_error_handler(
                 return collection.delete_many(filter)
     """
     def decorator(f: Callable) -> Callable:
+        total_attempts = retries + 1 
         # Определяем, является ли функция асинхронной
         is_async = iscoroutinefunction(f)
 
         if is_async:
             async def async_wrapper(*args, **kwargs):
                 last_exception = None
-                for attempt in range(retries):
+                for attempt in range(total_attempts):
                     try:
                         return await f(*args, **kwargs)
                     except exceptions as e:
@@ -185,9 +186,6 @@ def pymongo_error_handler(
                 return default_return
             return sync_wrapper
 
-    # Мы пробуем выполнить функцию в цикле по retriesб поэтому он должен быть минимум 1
-    if retries == 0:
-        retries += 1
     # Если декоратор применён без параметров
     if func is not None:
         return decorator(func)
@@ -382,7 +380,7 @@ class ConfigurableMongoDAO:
     Ожидает поля: host, user, password, timeout, db_name, collections.
     """
 
-    _client: AsyncMongoClient = field(default_factory=AsyncMongoClient)
+    _client: AsyncMongoClient|None = field(default=None)
     """
     Клиент MongoDB. Инициализируется при вызове init_dao().
     """
@@ -415,8 +413,9 @@ class ConfigurableMongoDAO:
         """
         self._cfg = DB_CFG
         await self._get_mongo_client()
-        self.db = self._client[self._cfg['db_name']]
-        await self._check_collections()
+        if self._client:
+            self.db = self._client[self._cfg['db_name']]
+            await self._check_collections()
 
     @pymongo_error_handler(**ERROR_HANDLER_CRITICAL)
     async def _get_mongo_client(
@@ -505,7 +504,8 @@ class ConfigurableMongoDAO:
         :type client: pymongo.MongoClient
         :raises ValueError: Если сервер MongoDB недоступен.
         """
-        await self._client.admin.command("ping")
+        if self._client:
+            await self._client.admin.command("ping")
 
     @pymongo_error_handler(**ERROR_HANDLER_BULK_DATA_OPERATIONS)
     async def aggregate(
@@ -626,7 +626,7 @@ class ConfigurableMongoDAO:
             requests.append(UpdateOne(
                                       filter={"_id": doc['_id']},
                                       update={
-                                                '$set':{k:v for k,v in doc.items() if k not in ('_id', 'created_at_DB')},
+                                                '$set':{k:v for k,v in doc.items() if k not in ('_id', 'created_at_DB', 'sample_db_id')},
                                                 '$setOnInsert': {"created_at_DB" : now}
                                                },
                                       upsert=True

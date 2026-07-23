@@ -1,11 +1,15 @@
 from __future__ import annotations
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 from logging import Logger
 
 from classes.objects.process import Process
-from constants import  PROCESS_STATUSES_CREATED, PROCESS_STATUSES_PLANNED, PROCESS_STATUSES_RUNNING
+from constants import (
+                       PROCESS_STATUSES_CREATED,
+                       PROCESS_STATUSES_PLANNED,
+                       PROCESS_STATUSES_RUNNING
+                      )
 from modules.logger import get_logger
 
 
@@ -301,18 +305,30 @@ class Queue(BaseModel):
                                                 if not proc.priority
                                                 ]
                     if unplanned_priority_processes and non_priority_planned_idxs:
-                        # Замещаем неприоритетные процессы в очереди приоритетными (zip создаст список нужной длины)
-                        idxs_n_unplanned_prior_proc = zip(non_priority_planned_idxs, unplanned_priority_processes)
-                        len_zip = len(list(idxs_n_unplanned_prior_proc))
-                        for idx, prior_proc in idxs_n_unplanned_prior_proc:
+                        # Создаём список кортежей для итерации
+                        substitutions = list(zip(non_priority_planned_idxs, unplanned_priority_processes))
+                        for idx, prior_proc in substitutions:
                             proc_to_replace = planned_processes[idx]
                             planned_processes[idx] = prior_proc
                             # У замещённого процесса забираем номер очереди
                             proc_to_replace.queue_number = None
                             # Помещаем замещённый процесс обратно к незапланированным
                             unplanned_non_priority_processes.append(proc_to_replace)
+                        # Удаляем использованные приоритетные процессы (первые len(substitutions) элементов)
+                        unplanned_priority_processes = unplanned_priority_processes[len(substitutions):]
+                        """
+                        # Замещаем неприоритетные процессы в очереди приоритетными (zip создаст список нужной длины)
+                        idxs_n_unplanned_prior_proc = zip(non_priority_planned_idxs, unplanned_priority_processes)
+                        len_zip = len(list(idxs_n_unplanned_prior_proc))
+                        for idx, prior_proc in idxs_n_unplanned_prior_proc:
+                            proc_to_replace = planned_processes[idx]
+                            planned_processes[idx] = prior_proc
+                            
+                            proc_to_replace.queue_number = None
+                            
+                            unplanned_non_priority_processes.append(proc_to_replace)
                         # Перемещенные к запланированным приоритетные процессы убираем из незапланированных
-                        unplanned_priority_processes = unplanned_priority_processes[-len_zip:]
+                        unplanned_priority_processes = unplanned_priority_processes[-len_zip:]"""
                     # Сортируем обновленные неприоритетные незапланированные процессы
                     unplanned_non_priority_processes = sort_process_list(unplanned_non_priority_processes, sign)
 

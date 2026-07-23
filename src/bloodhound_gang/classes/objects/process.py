@@ -194,18 +194,7 @@ class Process(BaseModel):
                                default=0.0,
                                description="Размер рабочей директории"
                               )
-    exitcode_f: Path = Field(
-                                  default=Path('/dev/null'),
-                                  description="Файл с кодом завершения"
-                                 )
-    stdout_f: Path = Field(
-                                default=Path('/dev/null'),
-                                description="Файл с stdout"
-                               )
-    stderr_f: Path = Field(
-                                default=Path('/dev/null'),
-                                description="Файл с stdout"
-                               )
+
     # RESULT
     res_d: Path = Field(
                         default=Path('/dev/null'),
@@ -231,6 +220,22 @@ class Process(BaseModel):
                         default=Path('/dev/null'),
                         description="Главный лог Nextflow",
                        )
+    command_f: Path = Field(
+                            default=Path('/dev/null'),
+                            description="Файл с кодом завершения"
+                           )
+    exitcode_f: Path = Field(
+                                  default=Path('/dev/null'),
+                                  description="Файл с кодом завершения"
+                                 )
+    stdout_f: Path = Field(
+                                default=Path('/dev/null'),
+                                description="Файл с stdout"
+                               )
+    stderr_f: Path = Field(
+                                default=Path('/dev/null'),
+                                description="Файл с stdout"
+                               )
     report_f: Path|None = Field(
                                 default=None,
                                 description="Репорт Nextflow",
