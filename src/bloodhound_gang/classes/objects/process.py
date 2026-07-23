@@ -360,11 +360,11 @@ class Process(BaseModel):
                          'stdout_f': self.log_d / f"{self.task_id}.out",
                          'stderr_f': self.log_d / f"{self.task_id}.err"
                         }
-        if getattr(self, 'log_d') == '/dev/null':
+        if getattr(self, 'log_d') == Path('/dev/null'):
                         setattr(self, 'log_d', self.work_d / 'logs')
         for attr, path in attrs_n_paths.items():
             # если к нам попал Process из БД с выставленными путями, не трогаем их
-            if getattr(self, attr) == '/dev/null':
+            if getattr(self, attr) == Path('/dev/null'):
                 setattr(self, attr, path)
         return self
 
