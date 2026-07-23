@@ -124,9 +124,11 @@ async def run_ssh_shell_detached(process: Process) -> None:
     )
     remote_cmd_f = process.log_d / f"{process.nextflow_id}_remote_cmd.sh"
 
+    # Оборачиваем в nohup и запуск в фоне
+    full_script = f"nohup bash -c '{remote_script}' > /dev/null 2>&1 &"
     # Кодируем скрипт в base64 для безопасной передачи как аргумент SSH
     import base64
-    encoded_script = base64.b64encode(remote_script.encode()).decode()
+    encoded_script = base64.b64encode(full_script.encode()).decode()
 
     # Запускаем ssh, передавая скрипт через stdin
     ssh_cmd = [
@@ -180,7 +182,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
-            #env=process.env,
+            env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
         )
         # Асинхронно отправляем скрипт в stdin ssh
