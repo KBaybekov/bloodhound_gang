@@ -21,3 +21,6 @@ version = {attr = "bloodhound_gang.__version__"}  # Брать версию из
 
 [tool.setuptools.packages.find]
 where = ["src"]           # Указываем, где искать пакеты
+
+[tool.ruff.lint]
+select = ["E", "F", "I"] # "I" обязательно должно быть здесь для сортировки импортов

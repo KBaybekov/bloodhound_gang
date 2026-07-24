@@ -160,4 +160,10 @@ NEXTFLOW_CMD_VARIABLES:dict[str, str|None] = {
                                               parse_str_for_variables_names(NEXTFLOW_TEMPLATE)
                                              }
 
+# Настройки SSH
 SSH_USER = os.environ.get('SSH_USER')
+# SSH-агент
+SSH_AUTH_SOCK = request_env_variable('SSH_AUTH_SOCK')
+SSH_CONNECT_TIMEOUT = 10  # секунд на установку соединения
+PID_WAIT_TIMEOUT = 30     # секунд на появление pid-файла
+PID_CHECK_INTERVAL = 0.5  # интервал проверки

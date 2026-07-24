@@ -67,30 +67,20 @@ async def run_ssh_shell_detached(process: Process) -> None:
         f"PIDFILE={shlex.quote(pid_file)}\n"
         "echo $$ > ${PIDFILE}\n"
         "trap \"rm -f ${PIDFILE}\" EXIT\n"
-        f"(\n{process.shell_command}\n) > {shlex.quote(stdout_file)} 2> {shlex.quote(stderr_file)}\n"
+        f"""(\n{process.shell_command}\n) \
+            > {shlex.quote(stdout_file)} \
+            2> {shlex.quote(stderr_file)}\n"""
         f"echo $? > {shlex.quote(exitcode_file)}\n"
     )
     remote_cmd_f = process.log_d / f"{process.nextflow_id}_remote_cmd.sh"
 
     # Оборачиваем в nohup и запуск в фоне
-    full_script = f"nohup bash -c '{remote_script}' > /dev/null 2>&1 &"
-    # Кодируем скрипт в base64 для безопасной передачи как аргумент SSH
-    #import base64
-    #encoded_script = base64.b64encode(full_script.encode()).decode()
-
-    # Запускаем ssh, передавая скрипт через stdin
-    ssh_cmd = [
-        "ssh",
-        "-o", "UserKnownHostsFile=/tmp/known_hosts",
-        "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
-        "-o", "StrictHostKeyChecking=accept-new",
-        f"{SSH_USER}@{process.host}",
-        f"'echo {shlex.quote(full_script)} | base64 -d | bash'"
-    ]
-
-    # Имитируем команду для command.sh, чтобы было понятно, как это запускалось через asyncssh
+    full_script = f"bash -c '{remote_script}' > /dev/null 2>&1 &"
+    #full_script = f"nohup bash -c '{remote_script}' > /dev/null 2>&1 &"
+    
+    # Изменяем команду для command.sh, придвавая ей стандартный shell-вид
     pseudo_ssh_cmd = [
-        "asyncssh-connect",
+        "ssh",
         f"{SSH_USER}@{process.host}",
         f"'{full_script}'"
     ]
@@ -107,7 +97,10 @@ async def run_ssh_shell_detached(process: Process) -> None:
                                content=' \\\n'.join(pseudo_ssh_cmd + [remote_cmd_f.as_posix()]) + '\n'
                               )
     except Exception:
-        logger.error("Process '%s': не удалось сформировать command.sh", process.process_id)
+        logger.error(
+                     "Process '%s': не удалось сформировать command.sh",
+                     process.process_id
+                    )
         process.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return
@@ -119,15 +112,13 @@ async def run_ssh_shell_detached(process: Process) -> None:
         # Устанавливаем асинхронное соединение
         # known_hosts=None отключает строгую проверку (аналог StrictHostKeyChecking=accept-new / no)
         conn = await asyncssh.connect(
-            host=process.host,
-            username=SSH_USER,
-            known_hosts=None,
-            login_timeout=SSH_CONNECT_TIMEOUT,
-            agent_path=auth_sock  # явно передаем путь к SSH-агенту
-        )
+                                      host=process.host,
+                                      username=SSH_USER,
+                                      login_timeout=SSH_CONNECT_TIMEOUT,
+                                      agent_path=auth_sock
+                                     )
 
-        # Запускаем команду. Мы НЕ используем `conn.run()`, так как он ждет завершения.
-        # Вместо этого создаем сессию процесса `create_process` и сразу идем дальше.
+        # создаём сессию процесса `create_process` и сразу идем дальше.
         await conn.create_process(full_script)
 
     except Exception:
@@ -163,7 +154,10 @@ async def run_ssh_shell_detached(process: Process) -> None:
     else:
         if not process.pid_f.exists():
             # Таймаут ожидания pid-файла
-            logger.error("Process '%s': pid-файл не появился за %d сек", process.process_id, PID_WAIT_TIMEOUT)
+            logger.error(
+                         "Process '%s': pid-файл не появился за %d сек",
+                         process.process_id, PID_WAIT_TIMEOUT
+                        )
         # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
         #!!!!!!
         #subprocess.kill()
@@ -174,7 +168,10 @@ async def run_ssh_shell_detached(process: Process) -> None:
     
     # PID получен – процесс считается запущенным
     process.status = 'running'  # PROCESS_STATUSES_RUNNING
-    logger.info("Process '%s' запущен на %s с PID %d", process.process_id, process.host, pid)
+    logger.info(
+                "Process '%s' запущен на %s с PID %d",
+                process.process_id, process.host, pid
+               )
 
     # НЕ ждём завершения ssh-процесса – он отсоединён и будет жить сам.
     return

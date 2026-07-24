@@ -1,5 +1,6 @@
 import aiofiles
 import asyncio
+import asyncssh
 import csv
 import jinja2
 import humanize
@@ -13,7 +14,15 @@ import pandas as pd
 from pathlib import Path
 from typing import Callable, Final
 
-from constants import PORES, TASK_DELIMITER, DELIMITER, TIMEZONE
+from constants import (
+                       PORES,
+                       TASK_DELIMITER,
+                       DELIMITER,
+                       TIMEZONE,
+                       SSH_USER,
+                       SSH_AUTH_SOCK,
+                       SSH_CONNECT_TIMEOUT
+                      )
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -714,68 +723,6 @@ async def write_file_async(
         raise
     return file
 
-'''
-def validate_nextflow_run_name(name: str) -> None:
-    """
-    Валидирует имя запуска либо выбрасывает ValueError
-    с описанием проблемы.
-
-    Parameters
-    ----------
-    name : str
-        Предполагаемое имя запуска.
-
-    Raises
-    ------
-    ValueError
-        Если имя не соответствует требованиям Nextflow.
-    """
-    pattern = re.compile(r"^[a-z](?:[a-z\d]|[-_](?=[a-z\d])){0,79}$")
-
-    if not isinstance(name, str) or not name:
-        raise ValueError("Имя запуска не может быть пустым.")
-
-    if len(name) > 80:
-        raise ValueError(
-            f"Имя запуска слишком длинное ({len(name)} символов, максимум 80)."
-        )
-
-    if not name[0].isalpha() or not name[0].islower():
-        raise ValueError(
-            f"Имя запуска должно начинаться со строчной латинской буквы, "
-            f"получено: '{name[0]}'."
-        )
-
-    if not pattern.match(name):
-        # Дадим более точную диагностику
-        invalid_chars = set(re.findall(r"[^a-z\d\-_]", name))
-        if invalid_chars:
-            raise ValueError(
-                f"Имя запуска содержит недопустимые символы: {invalid_chars}. "
-                f"Допустимы только строчные латинские буквы, цифры, дефисы и подчёркивания."
-            )
-
-        # Проверка на trailing/consecutive separators
-        if name[-1] in "-_":
-            raise ValueError(
-                "Имя запуска не может заканчиваться дефисом или подчёркиванием."
-            )
-
-        consecutive = re.search(r"[-_]{2,}", name)
-        if consecutive:
-            raise ValueError(
-                f"Имя запуска не может содержать подряд идущие разделители: "
-                f"'{consecutive.group()}' на позиции {consecutive.start()}."
-            )
-
-        raise ValueError(
-            f"Имя запуска '{name}' не соответствует формату Nextflow. "
-            f"Паттерн: ^[a-z](?:[a-z\\d]|[-_](?=[a-z\\d])){{0,79}}$"
-        )
-
-    return None
-'''
-
 def ensure_nextflow_name(name: str) -> str:
     """
     Приводит строку к требованиям Nextflow для имени запуска.
@@ -831,3 +778,36 @@ def get_now_time(
     if not microseconds:
         now = now.replace(microsecond=0)
     return now.replace(tzinfo=None)
+
+async def run_ssh_async(
+                        host:str,
+                        shell_command:str,
+                        **kwargs
+                       ) -> None:
+
+    conn = None
+    try:
+        # Устанавливаем асинхронное соединение
+        conn = await asyncssh.connect(
+                                      host=host,
+                                      agent_path=SSH_AUTH_SOCK,
+                                      login_timeout=SSH_CONNECT_TIMEOUT,
+                                      username=SSH_USER,
+                                      **kwargs
+                                     )
+
+        await conn.create_process(shell_command)
+    except asyncssh.PermissionDenied:
+        logger.exception("Ошибка: Неверные учетные данные или SSH-ключ.")
+    except asyncssh.Error:
+        logger.exception("Общая ошибка asyncssh при подключении")
+    except Exception:
+        logger.exception("Системная ошибка при подключении SSH")
+    finally:
+        # Закрываем соединение. Поскольку скрипт запущен в фоне (с суффиксом &),
+        # операционная система удаленного хоста передаст его init-процессу, и он продолжит жить.
+        if conn:
+            conn.close()
+            await conn.wait_closed()
+    return
+    

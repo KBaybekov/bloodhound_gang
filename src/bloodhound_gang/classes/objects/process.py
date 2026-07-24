@@ -21,7 +21,10 @@ from constants import (
                        PROCESS_STATUSES_RUNNING,
                        PROCESS_STATUSES_FINISHED,
                        NEXTFLOW_CMD_VARIABLES,
-                       NEXTFLOW_TEMPLATE                       
+                       NEXTFLOW_TEMPLATE,
+                       PID_WAIT_TIMEOUT,
+                       PID_CHECK_INTERVAL,
+                       SSH_USER
                       )
 from modules.utils import (
                            dehumanize_timedelta,
@@ -36,7 +39,9 @@ from modules.utils import (
                            render_text,
                            generate_params_file,
                            copy_file_async,
-                           ensure_nextflow_name
+                           ensure_nextflow_name,
+                           write_file_async,
+                           run_ssh_async
                           )
 from modules.logger import get_logger
 
@@ -177,6 +182,7 @@ class Process(BaseModel):
                                   default=None,
                                   description="Время окончания выполнения"
                                  )
+    # TODO настроить основной опцией получения данных о длительности чтение репорта Nextflow
     duration: timedelta|None = Field(
                                     default=None,
                                     description="Общая продолжительность выполнения"
@@ -625,9 +631,132 @@ class Process(BaseModel):
             self
            ) -> None:
         """
-        Запускает выполнение процесса. Возвращает PID процесса
+        Запускает выполнение процесса.
         """
-        from modules.cli_executor_ssh_async import run_ssh_shell_detached
+        async def _execute_cmd():
+            """
+            Запускает выполнение команды через SSH и определяет, была ли она запущена успешно.
+            """
+            if self.host is None:
+                logger.error("Process '%s': host не указан", self.process_id)
+                self.status = 'failed[no_host]' # PROCESS_STATUSES_FINISH_FAIL
+                return
+        
+            # Гарантируем наличие всех директорий
+            for d in [self.work_d, self.res_d, self.log_d]:
+                try:
+                    d.mkdir(parents=True, exist_ok=True)
+                except Exception as e:
+                    logger.exception("Process '%s': не удалось создать директорию %s: %s",
+                                        self.process_id, d, e)
+                    self.status = 'failed[no_directory]' # PROCESS_STATUSES_FINISH_FAIL
+                    return
+        
+            # Создаём необходимую обвязку для запуска команды через SSH
+            full_cmd = await _create_cmd_harness()
+            # Логируем готовую команду, добавив SSH-креды
+            self.command_f = self.log_d / f"{self.nextflow_id}_command.sh"
+            pseudo_ssh_cmd = [
+                              "ssh",
+                              f"{SSH_USER}@{self.host}",
+                              f"'{full_cmd}'"
+                             ]
+            try:
+                await write_file_async(
+                                       file=self.command_f,
+                                       content=' \\\n'.join(pseudo_ssh_cmd) + '\n'
+                                      )
+            except Exception:
+                logger.error(
+                             "Process '%s': не удалось сформировать command.sh",
+                             self.process_id
+                            )
+                self.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
+                return
+
+            logger.debug("Запуск AsyncSSH: host=%s, команда=%s", self.host, full_cmd)
+            try:
+                await run_ssh_async(
+                                    host=self.host,
+                                    shell_command=full_cmd
+                                   )
+            except Exception:
+                logger.exception("Process '%s': не удалось запустить удаленный процесс через AsyncSSH", self.process_id)
+                self.status = 'failed[no_subprocess]'  # PROCESS_STATUSES_FINISH_FAIL
+                return
+
+            # Ждём появления pid-файла с таймаутом
+            pid = None
+            if self.pid_f:
+                for _ in range(int(PID_WAIT_TIMEOUT / PID_CHECK_INTERVAL)):
+                    await asyncio.sleep(PID_CHECK_INTERVAL)
+                    if self.pid_f.exists():
+                        try:
+                            pid_str = self.pid_f.read_text().strip()
+                            if pid_str.isdigit():
+                                pid = int(pid_str)
+                                break
+                            else:
+                                logger.warning("Process '%s': pid-файл содержит нечисловое значение: %s",
+                                                self.process_id, pid_str)
+                        except Exception:
+                            logger.exception("Process '%s': ошибка чтения pid-файла", self.process_id)
+                else:
+                    if not self.pid_f.exists():
+                        # Таймаут ожидания pid-файла
+                        logger.error(
+                                     "Process '%s': pid-файл не появился за %d сек",
+                                     self.process_id, PID_WAIT_TIMEOUT
+                                    )
+                    self.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
+                    return
+
+                # PID получен – процесс считается запущенным
+                self.status = 'running'  # PROCESS_STATUSES_RUNNING
+                logger.info(
+                            "Process '%s' запущен на %s с PID %d",
+                            self.process_id, self.host, pid
+                            )
+                self.status = 'running' # PROCESS_STATUSES_RUNNING
+                return
+            else:
+                logger.error(
+                             "Process '%s': pid-файл не указан",
+                             self.process_id, PID_WAIT_TIMEOUT
+                            )
+                self.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
+                return
+
+        async def _create_cmd_harness() -> str:
+            """
+            Формирует обвязку для выполнения команды через SSH.
+            """
+            # Пути к PID-файлу
+            self.pid_f = self.log_d / "process.pid"
+            pid_file = self.pid_f.as_posix()
+            stdout_file = self.stdout_f.as_posix()
+            stderr_file = self.stderr_f.as_posix()
+            exitcode_file = self.exitcode_f.as_posix()
+
+            # Конвертируем env в набор строк
+            env_str = ""
+            if self.env:
+                env_str = " \\\n".join([f'export {k}={shlex.quote(v)}' for k,v in self.env.items()])
+
+            # Формируем  bash-скрипт для удалённого выполнения
+            remote_script = (
+                env_str,
+                f"PIDFILE={shlex.quote(pid_file)}\n"
+                "echo $$ > ${PIDFILE}\n"
+                "trap \"rm -f ${PIDFILE}\" EXIT\n"
+                f"""(\n{self.shell_command}\n) \
+                    > {shlex.quote(stdout_file)} \
+                    2> {shlex.quote(stderr_file)}\n"""
+                f"echo $? > {shlex.quote(exitcode_file)}\n"
+            )
+            # Оборачиваем в nohup и запуск в фоне
+            full_script = f"bash -c '{remote_script}' > /dev/null 2>&1 &"
+            return full_script
 
         logger.debug("Process '%s': preparing for run...", self.process_id)
         # Запуск процесса - впервые
@@ -670,9 +799,9 @@ class Process(BaseModel):
             # удаляем ненужный exitcode и запускаем процесс
             self.exitcode_f.unlink(missing_ok=True)
 
-        self.status = 'running' # PROCESS_STATUSES_RUNNING
-        await run_ssh_shell_detached(process=self)
-        #await asyncio.to_thread(run_ssh_shell_detached, process=self)
+        # Запускаем выполнение
+        await _execute_cmd()
+
         # Если процесс запущен неудачно - фиксируем время завершения
         if self.status not in PROCESS_STATUSES_RUNNING:
             self.set_finish()
@@ -703,17 +832,13 @@ class Process(BaseModel):
                 self.status = f'cancelled[{reason}]' # PROCESS_STATUSES_FINISH_FAIL / PROCESS_STATUSES_PLANNED
                 await self._cleanup_pid_and_exitcode(reason)
                 return
-                # Отправляем SIGTERM через ssh
-            try:
-                subproc = await asyncio.wait_for(
-                                                    asyncio.create_subprocess_exec(
-                                                        'ssh', self.host, f'kill -TERM {pid}',
-                                                        stdout=asyncio.subprocess.DEVNULL,
-                                                        stderr=asyncio.subprocess.DEVNULL),
-                                                    timeout=10
-                                                )
-                await subproc.wait()
 
+            # Отправляем SIGTERM через ssh
+            try:
+                await run_ssh_async(
+                                    host=self.host,
+                                    shell_command=f'kill -TERM {pid}'
+                                   )
                 logger.info("Process '%s': Отправлен SIGTERM процессу %d на %s", self.process_id, pid, self.host)
             except Exception:
                 logger.exception("Process '%s': Ошибка при отправке SIGTERM.", self.process_id)
@@ -730,15 +855,10 @@ class Process(BaseModel):
                     logger.debug("Process '%s': Sending SIGKILL to PID %d", self.process_id, pid)
                     # SIGKILL
                     try:
-                        subproc = await asyncio.wait_for(
-                                                    asyncio.create_subprocess_exec(
-                                                        'ssh', self.host, f'kill -KILL {pid}',
-                                                        stdout=asyncio.subprocess.DEVNULL,
-                                                        stderr=asyncio.subprocess.DEVNULL),
-                                                    timeout=10
-                                                )
-                        await subproc.wait()
-
+                        await run_ssh_async(
+                                            host=self.host,
+                                            shell_command=f'kill -KILL {pid}'
+                                           )
                         logger.warning("Process '%s' %d on %s killed forcibly (SIGKILL)", self.process_id, pid, self.host)
                     except Exception:
                         logger.exception("Process '%s': Ошибка при отправке SIGKILL.", self.process_id)
