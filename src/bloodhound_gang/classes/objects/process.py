@@ -740,12 +740,12 @@ class Process(BaseModel):
 
             # Конвертируем env в набор строк
             env_str = ""
-            #if self.env:
-            #    env_str = " \n".join([f'export {k}={shlex.quote(v)}' for k,v in self.env.items()])
+            if self.env:
+                env_str = " \n".join([f'export {k}={shlex.quote(v)}' for k,v in self.env.items()])
 
             # Формируем  bash-скрипт для удалённого выполнения
             remote_script = (
-                env_str,
+                #env_str,
                 f"PIDFILE={shlex.quote(pid_file)}\n"
                 "echo $$ > ${PIDFILE}\n"
                 "trap \"rm -f ${PIDFILE}\" EXIT\n"
