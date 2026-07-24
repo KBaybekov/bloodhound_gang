@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import shlex
+import subprocess
 from constants import SSH_USER, request_env_variable
 from classes.objects.process import Process
 from modules.utils import write_file_async
@@ -60,59 +61,6 @@ async def run_ssh_shell_detached(process: Process) -> None:
     stdout_file = process.stdout_f.as_posix()
     stderr_file = process.stderr_f.as_posix()
     exitcode_file = process.exitcode_f.as_posix()
-    """
-    # Удалённая команда с trap для удаления pid-файла
-
-    remote_cmd = [
-    "\"bash -c "
-    f"'echo \\$\\$ > {pid_file} "
-    "&& "
-    f"trap \\\"rm -f {pid_file}\" EXIT; "
-    f"( {process.shell_command} ) "
-    f"> {stdout_file} "
-    f"2> {stderr_file}; "
-    f"echo \\$? > {exitcode_file}'\""
-]
-    
-    # Собираем аргументы для локального ssh
-    ssh_cmd = [
-        "ssh",
-        "-o", "UserKnownHostsFile=/tmp/known_hosts",          # использовать агент хоста
-        "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",         # таймаут на подключение
-        "-o", "StrictHostKeyChecking=accept-new",  # для новых хостов (можно убрать в проде)
-        f"{SSH_USER}@{process.host}",
-        *remote_cmd                  # передаём как отдельные аргументы
-    ]"""
-
-    """remote_cmd_parts = [
-        "sh", "-c",
-        f"echo $$ > {shlex.quote(str(process.pid_f))} && "
-        f"( {process.shell_command} ) > {shlex.quote(str(process.stdout_f))} 2> {shlex.quote(str(process.stderr_f))}; "
-        f"echo $? > {shlex.quote(str(process.exitcode_f))}"
-    ]"""
-
-
-    """
-    # 1. Формируем чистую внутреннюю Bash-команду БЕЗ хардкодных внешних кавычек.
-    # Используем логику образца с переменной PIDFILE, чтобы избежать дублирования путей.
-    ssh_cmd = [
-    "ssh",
-    "-o UserKnownHostsFile=/tmp/known_hosts",
-    f"-o ConnectTimeout={SSH_CONNECT_TIMEOUT}",
-    "-o StrictHostKeyChecking=accept-new",
-    f"{SSH_USER}@{process.host}",
-    (
-        "\"bash -c \\\n"
-        f"'PIDFILE={pid_file}; \\\n"
-        "echo \\$\\$ > \\${PIDFILE} \\\n"
-        "&& \\\n"
-        "trap \\\"rm -f \\${PIDFILE}\\\" EXIT; \\\n"
-        f"( {process.shell_command} ) \\\n"
-        f"> {stdout_file} \\\n"
-        f"2> {stderr_file}; \\\n"
-        f"echo \\$? > {exitcode_file}'\""
-    )
-    ]"""
 
     # 1. Формируем чистый bash-скрипт для удалённого выполнения
     remote_script = (
@@ -157,38 +105,28 @@ async def run_ssh_shell_detached(process: Process) -> None:
         process.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return
-    """
-    # 4. Асинхронный запуск. 
-    # Перед передачей в create_subprocess_exec нам нужно разбить строки вида "-o Key=Value", 
-    # так как subprocess требует строго раздельные аргументы.
-    final_exec_args = []
-    for arg in ssh_cmd:
-        if arg.startswith("-o "):
-            final_exec_args.extend(["-o", arg[3:]])
-        else:
-            final_exec_args.append(arg)
-    """
-    #exec_cmd = ['bash', process.command_f]
-    
+   
     logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
 
     try:
         # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
-        subprocess = await asyncio.create_subprocess_exec(
+        """subprocess = await asyncio.create_subprocess_exec(
             *ssh_cmd,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
             env=process.env,
             start_new_session=True   # чтобы процесс стал лидером сессии
-        )
-        # Асинхронно отправляем скрипт в stdin ssh
-        """if subprocess.stdin:
-            #subprocess.stdin.write(remote_script.encode())
-            subprocess.stdin.write(f"bash {remote_cmd_f.as_posix()}\n".encode('utf-8'))
-            await subprocess.stdin.drain()
-            subprocess.stdin.close()"""
+        )"""
+        subp = await asyncio.to_thread(subprocess.Popen,
+                    args=ssh_cmd,
+                    stdin=asyncio.subprocess.DEVNULL,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    env=process.env,
+                    start_new_session=True   # чтобы процесс стал лидером сессии
+                )
 
     except Exception:
         logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
@@ -217,32 +155,11 @@ async def run_ssh_shell_detached(process: Process) -> None:
             # Таймаут ожидания pid-файла
             logger.error("Process '%s': pid-файл не появился за %d сек", process.process_id, PID_WAIT_TIMEOUT)
         # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
-        subprocess.kill()
-        await subprocess.wait()
+        await asyncio.to_thread(subp.kill)
+        await asyncio.to_thread(subp.wait)
         process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return
-        """
-    else:
-        # Читаем stderr, чтобы узнать причину ошибки
-        try:
-            stderr_data = await asyncio.wait_for(subprocess.stderr.read(), timeout=5)
-            stderr_text = stderr_data.decode(errors='replace').strip()
-        except Exception:
-            stderr_text = "(не удалось прочитать stderr)"
-        logger.error("Process '%s': pid-файл не появился за %d сек. stderr ssh: %s",
-                        process.process_id, PID_WAIT_TIMEOUT, stderr_text)
-        # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
-        try:
-            subprocess.kill()
-            await subprocess.wait()
-        except ProcessLookupError:
-            pass
-        process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
-        process.set_finish()
-        return None
-    """
-
     
     # PID получен – процесс считается запущенным
     process.status = 'running'  # PROCESS_STATUSES_RUNNING
@@ -250,21 +167,3 @@ async def run_ssh_shell_detached(process: Process) -> None:
 
     # НЕ ждём завершения ssh-процесса – он отсоединён и будет жить сам.
     return
-
-"""
-# тут всё отлично, только убийство оболочки не создаёт экзиткод
-ssh \
--o UserKnownHostsFile=/tmp/known_hosts \
--o ConnectTimeout=10 \
--o StrictHostKeyChecking=accept-new \
-kbajbekov@vu10-2-030 \
-"bash -c \
-'PIDFILE=/mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/process.pid; \
-echo \$\$ > \${PIDFILE} \
-&& \
-trap \"rm -f \${PIDFILE}\" EXIT; \
-( sleep 60 ) \
-> /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.out \
-2> /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.err; \
-echo \$? > /mnt/cephfs8_rw/nanopore2/test_space/processing/DNA/TEST/770130661501/test_task/20241127_1832_P2S-02570-B_PAY68669_d979f59e/010122abcd/test_task__010122abcd.exitcode'"
-"""
