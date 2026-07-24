@@ -153,10 +153,10 @@ async def run_ssh_shell_detached(process: Process) -> None:
                                content=' \\\n'.join(ssh_cmd + [remote_cmd_f.as_posix()]) + '\n'
                               )
     except Exception:
-        logger.error("Process '%s': не удалось сформировать command.sh %s", process.process_id)
+        logger.error("Process '%s': не удалось сформировать command.sh", process.process_id)
         process.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
-        return None
+        return
     """
     # 4. Асинхронный запуск. 
     # Перед передачей в create_subprocess_exec нам нужно разбить строки вида "-o Key=Value", 
@@ -177,7 +177,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
         subprocess = await asyncio.create_subprocess_exec(
             *ssh_cmd,
-            stdin=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
             env=process.env,
@@ -194,7 +194,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
         process.status = 'failed[no_subprocess]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
-        return None
+        return
 
     # Ждём появления pid-файла с таймаутом
     pid = None
@@ -221,7 +221,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
         await subprocess.wait()
         process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
-        return None
+        return
         """
     else:
         # Читаем stderr, чтобы узнать причину ошибки
@@ -249,7 +249,7 @@ async def run_ssh_shell_detached(process: Process) -> None:
     logger.info("Process '%s' запущен на %s с PID %d", process.process_id, process.host, pid)
 
     # НЕ ждём завершения ssh-процесса – он отсоединён и будет жить сам.
-    return None
+    return
 
 """
 # тут всё отлично, только убийство оболочки не создаёт экзиткод
