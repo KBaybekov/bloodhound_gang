@@ -793,6 +793,7 @@ async def run_ssh_async(
                                       agent_path=SSH_AUTH_SOCK,
                                       login_timeout=SSH_CONNECT_TIMEOUT,
                                       username=SSH_USER,
+                                      known_hosts=None,
                                       **kwargs
                                      )
 
