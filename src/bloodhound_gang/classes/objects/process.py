@@ -623,7 +623,11 @@ class Process(BaseModel):
                                          data=sanitized,
                                          strict=True
                                         ).strip().replace("  ", " ")
-        self.shell_command = "sleep 60" # !!! TEST
+        self.shell_command = (
+    "echo 'Это стандартный вывод (stdout)';"
+    "echo 'Это сообщение об ошибке (stderr)' >&2;"
+    "sleep 40"
+) # !!! TEST
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
         return None
     
@@ -742,7 +746,7 @@ class Process(BaseModel):
             env_str = ""
             if self.env:
                 env_str = " \n".join([f'export {k}={shlex.quote(v)}' for k,v in self.env.items()])
-
+# TODO
             # Формируем  bash-скрипт для удалённого выполнения
             remote_script = (
                 #env_str,
