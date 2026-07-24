@@ -627,7 +627,7 @@ class Process(BaseModel):
         """
         Запускает выполнение процесса. Возвращает PID процесса
         """
-        from modules.cli_executor_ssh import run_ssh_shell_detached
+        from modules.cli_executor_ssh_async import run_ssh_shell_detached
 
         logger.debug("Process '%s': preparing for run...", self.process_id)
         # Запуск процесса - впервые
@@ -672,10 +672,11 @@ class Process(BaseModel):
 
         self.status = 'running' # PROCESS_STATUSES_RUNNING
         await run_ssh_shell_detached(process=self)
+        #await asyncio.to_thread(run_ssh_shell_detached, process=self)
         # Если процесс запущен неудачно - фиксируем время завершения
         if self.status not in PROCESS_STATUSES_RUNNING:
             self.set_finish()
-        return None
+        return
 
     async def terminate(
                         self,

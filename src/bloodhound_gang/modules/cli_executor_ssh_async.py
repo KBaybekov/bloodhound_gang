@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import asyncssh
 import shlex
-import subprocess
 from constants import SSH_USER, request_env_variable
 from classes.objects.process import Process
 from modules.utils import write_file_async
@@ -15,7 +15,7 @@ SSH_CONNECT_TIMEOUT = 10  # секунд на установку соедине�
 PID_WAIT_TIMEOUT = 30     # секунд на появление pid-файла
 PID_CHECK_INTERVAL = 0.5  # интервал проверки
 
-def run_ssh_shell_detached(process: Process) -> None:
+async def run_ssh_shell_detached(process: Process) -> None:
     """
     Запускает удалённую команду через SSH в полностью отсоединённом режиме.
     Использует SSH-агент хоста (форвардится через -o ForwardAgent=yes).
@@ -75,8 +75,8 @@ def run_ssh_shell_detached(process: Process) -> None:
     # Оборачиваем в nohup и запуск в фоне
     full_script = f"nohup bash -c '{remote_script}' > /dev/null 2>&1 &"
     # Кодируем скрипт в base64 для безопасной передачи как аргумент SSH
-    import base64
-    encoded_script = base64.b64encode(full_script.encode()).decode()
+    #import base64
+    #encoded_script = base64.b64encode(full_script.encode()).decode()
 
     # Запускаем ssh, передавая скрипт через stdin
     ssh_cmd = [
@@ -85,42 +85,64 @@ def run_ssh_shell_detached(process: Process) -> None:
         "-o", f"ConnectTimeout={SSH_CONNECT_TIMEOUT}",
         "-o", "StrictHostKeyChecking=accept-new",
         f"{SSH_USER}@{process.host}",
-        f"'echo {shlex.quote(encoded_script)} | base64 -d | bash'"
+        f"'echo {shlex.quote(full_script)} | base64 -d | bash'"
     ]
 
+    # Имитируем команду для command.sh, чтобы было понятно, как это запускалось через asyncssh
+    pseudo_ssh_cmd = [
+        "asyncssh-connect",
+        f"{SSH_USER}@{process.host}",
+        f"'{full_script}'"
+    ]
     # 3. Запись в command.sh
     process.command_f = process.log_d / f"{process.nextflow_id}_command.sh"
     
     try:
-        asyncio.create_task(write_file_async(file=remote_cmd_f,content=remote_script))
-        asyncio.create_task(write_file_async(file=process.command_f,content=' \\\n'.join(ssh_cmd + [remote_cmd_f.as_posix()]) + '\n'))
+        await write_file_async(
+                               file=remote_cmd_f,
+                               content=remote_script
+                              )
+        await write_file_async(
+                               file=process.command_f,
+                               content=' \\\n'.join(pseudo_ssh_cmd + [remote_cmd_f.as_posix()]) + '\n'
+                              )
     except Exception:
         logger.error("Process '%s': не удалось сформировать command.sh", process.process_id)
         process.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return
    
-    logger.debug("Запуск SSH: host=%s, команда=%s", process.host, ' '.join(ssh_cmd))
+    logger.debug("Запуск AsyncSSH: host=%s, команда=%s", process.host, full_script)
 
+    conn = None
     try:
-        # Асинхронный запуск ssh с перенаправлением stdin в /dev/null
-        # stdout/stderr нам не нужны, но при ошибке мы можем их прочитать
-        s = subprocess.run()
-
-        subprocess = await asyncio.create_subprocess_exec(
-            *ssh_cmd,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-            env=process.env,
-            start_new_session=True   # чтобы процесс стал лидером сессии
+        # Устанавливаем асинхронное соединение
+        # known_hosts=None отключает строгую проверку (аналог StrictHostKeyChecking=accept-new / no)
+        conn = await asyncssh.connect(
+            host=process.host,
+            username=SSH_USER,
+            known_hosts=None,
+            login_timeout=SSH_CONNECT_TIMEOUT,
+            agent_path=auth_sock  # явно передаем путь к SSH-агенту
         )
 
+        # Запускаем команду. Мы НЕ используем `conn.run()`, так как он ждет завершения.
+        # Вместо этого создаем сессию процесса `create_process` и сразу идем дальше.
+        await conn.create_process(full_script)
+
     except Exception:
-        logger.exception("Process '%s': не удалось запустить ssh-подпроцесс", process.process_id)
-        process.status = 'failed[no_subprocess]' # PROCESS_STATUSES_FINISH_FAIL
+        logger.exception("Process '%s': не удалось запустить удаленный процесс через AsyncSSH", process.process_id)
+        if conn:
+            conn.close()
+        process.status = 'failed[no_subprocess]'
         process.set_finish()
         return
+    finally:
+        # Закрываем соединение. Поскольку скрипт запущен в фоне (с суффиксом &),
+        # операционная система удаленного хоста передаст его init-процессу, и он продолжит жить.
+        if conn:
+            conn.close()
+            await conn.wait_closed()
 
     # Ждём появления pid-файла с таймаутом
     pid = None
@@ -143,8 +165,9 @@ def run_ssh_shell_detached(process: Process) -> None:
             # Таймаут ожидания pid-файла
             logger.error("Process '%s': pid-файл не появился за %d сек", process.process_id, PID_WAIT_TIMEOUT)
         # Убиваем локальный ssh, т.к. удалённая команда, вероятно, не запустилась
-        subprocess.kill()
-        await subprocess.wait()
+        #!!!!!!
+        #subprocess.kill()
+        #await subprocess.wait()
         process.status = 'failed[bad_pidfile]' # PROCESS_STATUSES_FINISH_FAIL
         process.set_finish()
         return
