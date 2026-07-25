@@ -624,8 +624,8 @@ class Process(BaseModel):
                                          strict=True
                                         ).strip().replace("  ", " ")
         self.shell_command = (
-    "echo 'Это стандартный вывод (stdout)';"
-    "echo 'Это сообщение об ошибке (stderr)' >&2;"
+    'echo "Это стандартный вывод (stdout)";'
+    'echo "Это сообщение об ошибке (stderr)" >&2;'
     "sleep 40"
 ) # !!! TEST
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
