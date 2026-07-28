@@ -79,10 +79,11 @@ class ProcessData(BaseModel):
                     coll[task_id].append(process_id)
             # если не подходит - пробуем выкинуть оттуда id. А если его там не было - то и ладно
             else:
-                try:
-                    coll[task_id].remove(process_id)
-                except (KeyError, ValueError):
-                    pass
+                if task_id in coll:
+                    try:
+                        coll[task_id].remove(process_id)
+                    except ValueError:
+                        pass
             setattr(self, collection, coll)
         return None
 
@@ -315,7 +316,12 @@ class Sample(BaseModel):
         """
         field_names = list(Sample.model_fields.keys())
         for field_name in field_names:
-            self._original.update({field_name:getattr(self, field_name)})
+            value = getattr(self, field_name)
+            # В случае, если значение атрибута - класс, сравниваем обьъект и его дубликат (а не объект и тот же объект до изменений)
+            if isinstance(value, BaseModel):
+                self._original[field_name] = value.model_copy(deep=True)
+            else:
+                self._original[field_name] = value
         return None
 
     def store_process_status(

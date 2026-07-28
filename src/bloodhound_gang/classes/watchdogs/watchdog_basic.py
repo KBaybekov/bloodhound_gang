@@ -69,30 +69,35 @@ class WatchdogBasic(BaseModel):
     async def _run_loop(self):
         """Главный цикл наблюдения."""
         self.logger.debug("Main watchdog loop starting...")
-        while not self.stop_event.is_set():
-            # Фиксируем время начала цикла
-            self.watch_loop_start_time = time.time()
-            try:
-                self.logger.debug("Starting %s cycle", self.name)
-                await self.watch()
-                self.logger.debug("Cycle %s finished", self.name)
-                # Фиксируем время окончания цикла и ждём до начала следующего
-                loop_end_time = time.time()
-                self.watch_loop_duration = loop_end_time - self.watch_loop_start_time
-                self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
-                
-                # Обновляем интервал проверки для вотчдога
-                self.check_interval = float(self.request_env_variable(self.interval_env_variable))
-                await asyncio.sleep(max([(self.check_interval - self.watch_loop_duration), 5]))
-            except asyncio.CancelledError:
-                self.logger.info(f"[{self.name}] Задача отменена")
-                break
-            except Exception:
-                self.logger.exception("[%s] Ошибка в цикле наблюдения", self.name)
-                await asyncio.sleep(1)
-
-        await self.cleanup()
-        self.logger.info(f"[{self.name}] Остановлен")
+        try:
+            while not self.stop_event.is_set():
+                # Фиксируем время начала цикла
+                self.watch_loop_start_time = time.time()
+                try:
+                    self.logger.debug("Starting %s cycle", self.name)
+                    await self.watch()
+                    self.logger.debug("Cycle %s finished", self.name)
+                    # Фиксируем время окончания цикла и ждём до начала следующего
+                    loop_end_time = time.time()
+                    self.watch_loop_duration = loop_end_time - self.watch_loop_start_time
+                    self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
+                    
+                    # Обновляем интервал проверки для вотчдога
+                    self.check_interval = float(self.request_env_variable(self.interval_env_variable))
+                    sleep_time = max((self.check_interval - self.watch_loop_duration), 5)
+                    try:
+                        await asyncio.wait_for(self.stop_event.wait(), timeout=sleep_time)
+                    except asyncio.TimeoutError:
+                        pass
+                except asyncio.CancelledError:
+                    self.logger.info(f"[{self.name}] Задача отменена")
+                    break
+                except Exception:
+                    self.logger.exception("[%s] Ошибка в цикле наблюдения", self.name)
+                    await asyncio.sleep(1)
+        finally:
+            await self.cleanup()
+            self.logger.info(f"[{self.name}] Остановлен")
 
     async def watch(self):
         """

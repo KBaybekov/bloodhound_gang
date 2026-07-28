@@ -30,7 +30,7 @@ async def main():
     # Колбэк для установки async события при остановке
     def shutdown():
         """Синхронный колбэк для asyncio. Планирует остановку."""
-        logger.warning("Получен сигнал завершения (SIGINT)")
+        logger.warning("Получен сигнал завершения")
         asyncio.create_task(stop_all())
 
     async def stop_all():
@@ -108,7 +108,8 @@ async def main():
     # Регистрируем обработчик сигнала в asyncio
     try:
         loop.add_signal_handler(signal.SIGINT, shutdown)
-        logger.debug("Added SIGINT handler")
+        loop.add_signal_handler(signal.SIGTERM, shutdown)
+        logger.debug("Added SIGINT and SIGTERM handlers")
     except NotImplementedError:
         logger.exception("Регистрация обработчика сигналов не поддерживается на данной платформе")
         raise

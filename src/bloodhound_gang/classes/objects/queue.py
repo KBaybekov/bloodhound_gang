@@ -441,18 +441,17 @@ class Queue(BaseModel):
         processes_for_start = []
         vacancies_count = self.concurrency - len(self.processes_active)
         if vacancies_count > 0:
-            while vacancies_count > 0:
-                for queue_num, proc in sorted(self.processes_planned.copy().items()):
-                    # Раскидываем свободные общие ресурсы
-                    for shared_resource in self.shared_resources:
-                        shared_resource.send_val_to_proc(proc)
-                    del self.processes_planned[queue_num]
-                    processes_for_start.append(proc.process_id)
-                    vacancies_count -= 1
-                    if vacancies_count == 0:
-                        self.last_started_process = {proc.process_id: queue_num}
-                if not self.processes_planned:
+            for queue_num, proc in sorted(self.processes_planned.copy().items()):
+                if vacancies_count == 0:
                     break
+                # Раскидываем свободные общие ресурсы
+                for shared_resource in self.shared_resources:
+                    shared_resource.send_val_to_proc(proc)
+                # Удаляем из запланированных и добавляем в список на запуск
+                del self.processes_planned[queue_num]
+                processes_for_start.append(proc.process_id)
+                self.last_started_process = {proc.process_id: queue_num}
+                vacancies_count -= 1
         if processes_for_start:
             self.logger.debug("Processes to start from queue '%s': %s", self.name, processes_for_start)
         return processes_for_start

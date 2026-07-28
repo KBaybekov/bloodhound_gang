@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, Field, field_validator,
 
 from classes.objects.taskload import TaskLoad
 from constants import (
+                       DEBUG,
                        DELIMITER,
                        PROCESS_STATUSES,
                        PROCESS_STATUSES_RUNNING,
@@ -27,10 +28,7 @@ from constants import (
                        SSH_USER
                       )
 from modules.utils import (
-                           dehumanize_timedelta,
-                           dehumanize_timedelta_to_seconds,
                            get_now_time,
-                           humanize_timedelta,
                            is_integer,
                            decode_process_id,
                            objects_in_dir,
@@ -46,6 +44,8 @@ from modules.utils import (
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
+
+# TODO TaskRuntimeConfig, TaskExecutionParams - создать классы, содержащие параметры, задаваемые в Task и используемые в Process 
 
 class Process(BaseModel):
     """
@@ -296,7 +296,7 @@ class Process(BaseModel):
         from classes.objects.task import Task
         process_data = {}
         # process_id parsing
-        task_id, task_name, task_version, sample_id, tags = decode_process_id(process_id)
+        _, task_name, task_version, sample_id, tags = decode_process_id(process_id)
 
         process_data.update({
                              'res_d': sample.res_d.joinpath(task_name, *tags, task_version),
@@ -308,15 +308,16 @@ class Process(BaseModel):
                              'nxf_cfg_organisation_f':task.nxf_cfg_organisation,
                              'nxf_cfg_pipeline_f':task.nxf_cfg_pipeline_f,
                              'result_factory': task.result_factory,
-                             'timeout': dehumanize_timedelta_to_seconds(task.timeout)
+                             'timeout': task.timeout
                             })
 
         return Process(
                        process_id=process_id,
+                       _id=ObjectId(),
                        sample_id=sample_id,
                        sample_db_id=sample.db_id,
                        tags=tags,
-                       task_id=task_id,
+                       task_id=task.task_id,
                        weight=weight,
                        created=get_now_time(),
                        **process_data
@@ -331,7 +332,7 @@ class Process(BaseModel):
         Создаёт экземпляр Process из документа, полученного из БД.
         """
         if doc.get('duration', None) is not None:
-            doc['duration'] = dehumanize_timedelta(doc['duration'])
+            doc['duration'] = timedelta(seconds=doc['duration'])
         else:
             doc['duration'] = None
         for attr in [
@@ -354,7 +355,7 @@ class Process(BaseModel):
         doc['_id'] = self.db_id
         doc['sample_db_id'] = self.sample_db_id
         if self.duration is not None:
-            doc['duration'] = humanize_timedelta(self.duration)
+            doc['duration'] = self.duration.total_seconds()
         
         return doc
 
@@ -441,7 +442,7 @@ class Process(BaseModel):
                 try:
                     self.set_finish()
                     with open(self.exitcode_f, 'r') as f:
-                        exitcode = f.readline()
+                        exitcode = f.readline().strip()
                     if is_integer(exitcode):
                         return exitcode
                     else:
@@ -501,6 +502,7 @@ class Process(BaseModel):
         try:
             # Проверяем, завершился ли процесс
             self.exitcode = check_exitcode()
+            # Если да, то проводим анализ выполнения
             if self.exitcode is not None:
                 logger.debug("Process '%s': Exit code file found: %s", self.process_id, self.exitcode_f.as_posix())
                 # Ищем логи
@@ -536,7 +538,9 @@ class Process(BaseModel):
                 if self.exitcode is not None:
                     await self.check_running()
         except Exception:
-            logger.error("Process '%s'. Error during checking running process.", self.process_id)
+            self.status = 'failed[bad_processing]' # PROCESS_STATUSES_FINISH_FAIL
+            logger.exception("Process '%s'. Error during checking running process.", self.process_id)
+            self.set_finish()
         finally:
             return None
     
@@ -623,11 +627,12 @@ class Process(BaseModel):
                                          data=sanitized,
                                          strict=True
                                         ).strip().replace("  ", " ")
-        self.shell_command = (
-    'echo "Это стандартный вывод (stdout)";'
-    'echo "Это сообщение об ошибке (stderr)" >&2;'
-    "sleep 40"
-) # !!! TEST
+        if DEBUG:
+            self.shell_command = (
+                                  'echo "Это стандартный вывод (stdout)";'
+                                  'echo "Это сообщение об ошибке (stderr)" >&2;'
+                                  "sleep 60"
+                                 )
         logger.debug("Process '%s': Shell command built: %s", self.process_id, self.shell_command)
         return None
     
@@ -742,14 +747,13 @@ class Process(BaseModel):
             stderr_file = self.stderr_f.as_posix()
             exitcode_file = self.exitcode_f.as_posix()
 
-            # Конвертируем env в набор строк
-            env_str = ""
+            # Подготавливаем экспорт переменных окружения
+            env_lines = ""
             if self.env:
-                env_str = " \n".join([f'export {k}={shlex.quote(v)}' for k,v in self.env.items()])
-# TODO
+                env_lines = "\n".join([f"export {k}={shlex.quote(str(v))}" for k,v in self.env.items()]) + "\n"
             # Формируем  bash-скрипт для удалённого выполнения
             remote_script = (
-                #env_str,
+                env_lines +
                 f"PIDFILE={shlex.quote(pid_file)}\n"
                 "echo $$ > ${PIDFILE}\n"
                 "trap \"rm -f ${PIDFILE}\" EXIT\n"
@@ -802,6 +806,9 @@ class Process(BaseModel):
             logger.info("Process '%s': перезапуск", self.process_id)
             # удаляем ненужный exitcode и запускаем процесс
             self.exitcode_f.unlink(missing_ok=True)
+            self.start = get_now_time()
+            self.finish = None
+            self.duration = None
 
         # Запускаем выполнение
         await _execute_cmd()

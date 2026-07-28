@@ -15,8 +15,6 @@ from modules.logger import get_logger
 logger = get_logger(__name__)
 
 class ResultBasecallingBasic(ResultBasic):
-    
-
     """
     Данные бейзколлинга без модификаций
     """
@@ -37,7 +35,7 @@ class ResultBasecallingBasic(ResultBasic):
                                                   default_factory=list,
                                                   description="Список с метаданными UBAM/FASTQ"
                                                  )
-
+    '''
     @classmethod
     def from_process(cls, process:Process) -> "ResultBasecallingBasic":
         """Создаёт экземпляр ResultBasecallingBasic на основе метаданных процесса"""
@@ -47,7 +45,24 @@ class ResultBasecallingBasic(ResultBasic):
                    **base.model_dump(),
                    type='basecalling_basic'
                   )
-
+    '''
+    @classmethod
+    def from_process(
+                     cls,
+                     process:Process
+                    ) -> "ResultBasecallingBasic":
+        """
+        Создаёт экземпляр ResultBasecallingBasic на основе метаданных процесса
+        """
+        base = super().from_process(process)
+        # Извлекаем словарь без поля 'type', чтобы избежать конфликта
+        base_data = base.model_dump()
+        base_data.pop('type', None)
+        return cls(
+                   **base_data,
+                   type='basecalling_basic'
+                  )
+    '''
     @classmethod
     def from_source(
                     cls,
@@ -88,3 +103,41 @@ class ResultBasecallingBasic(ResultBasic):
                    multiqc_f=multiqc_f,
                    basecall_data=basecall_data or []
                   )
+    '''
+    @classmethod
+    def from_source(
+                    cls,
+                    task_id: str,
+                    sample_id:str, 
+                    type: str = 'basecalling_basic',  # по умолчанию для этого класса
+                    created: datetime|None = None,
+                    tags: list[str]|None = None,
+                    process_id: str = 'UNDEFINED',
+                    res_d: Path = Path('/dev/null'),
+                    work_d: Path|None = None,
+                    source_files_metadata: Path|None = None,
+                    generated_pod5s_d: Path|None = None,
+                    multiqc_f: Path|None = None,
+                    basecall_data: list[TypingUnion['UbamONT','FastqONT']] = [],
+                    **kwargs
+                   ) -> "ResultBasecallingBasic":
+        base = super().from_source(
+                                   process_id=process_id,
+                                   sample_id=sample_id,
+                                   task_id=task_id,
+                                   type=type,
+                                   created=created,
+                                   tags=tags,
+                                   res_d=res_d,
+                                   work_d=work_d,
+                                   **kwargs
+                                  )  
+        base_data = base.model_dump()
+        base_data.pop('type', None)
+        return cls(
+            **base_data,
+            source_files_metadata=source_files_metadata,
+            generated_pod5s_d=generated_pod5s_d,
+            multiqc_f=multiqc_f,
+            basecall_data=basecall_data or []
+        )

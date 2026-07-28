@@ -145,6 +145,8 @@ class WatchdogMetrics(WatchdogBasic):
         4 processes_by_status
         5 queue_length
         6 host_occupation_percent
+        7 avg duration per weight per task (use utils.py:humanize_timedelta())
+        7 avg duration per task (use utils.py:humanize_timedelta())
         """
         # 4. Процессы по статусам
         status_counts: Dict[str, int] = {}

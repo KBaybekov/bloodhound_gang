@@ -74,9 +74,9 @@ class Task(BaseModel):
                            description="Нагрузка на вычислительные мощности",
                            frozen=True
                           )
-    timeout: str = Field(
-                         default="10 s",
-                         description="Таймаут выполнения (строка)"
+    timeout: float = Field(
+                         default=10,
+                         description="Таймаут выполнения в секундах"
                         )
     priority: bool = Field(
                            default=False,
@@ -127,7 +127,6 @@ class Task(BaseModel):
 
         try:
             db_query = str_to_dict(data['db_query'])
-
             task_path = Path('.').resolve() / "src/bloodhound_gang/tasks/"
             # Формируем пути для process_factory и result_factory (изначально это относительные пути типа 'basecalling_basic/process_factory.py')
             process_factory_rel:str = data['process_factory']
@@ -231,7 +230,8 @@ class Task(BaseModel):
                             'version':f"{date.today().strftime('%d%m%y')}{version}",
                             'priority': True if row['priority'].lower() == 'true' else False,
                             'load': split_str_to_dict(row['load'], mode='load'),
-                            'environment_variables': split_str_to_dict(row['environment_variables'])
+                            'environment_variables': split_str_to_dict(row['environment_variables']),
+                            'timeout': float(row['timeout'])
                            })
                 # Проверяем валидность данных - пробуем создать объект Task
                 try:

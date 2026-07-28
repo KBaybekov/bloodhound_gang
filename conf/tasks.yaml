@@ -12,7 +12,7 @@ tasks:
     cpus: 32
     ram: 128
     gpus: 1
-  timeout: '1D'
+  timeout: 86400
   priority: true
   nxf_cfg_pipeline_f: 'basecalling_basic/nxf_basecalling.config' # может быть null
   process_factory: 'basecalling_basic/process_factory.py'

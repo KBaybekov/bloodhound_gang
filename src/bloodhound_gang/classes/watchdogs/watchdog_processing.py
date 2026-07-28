@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Literal
 
 import asyncio
+import random
 from bson import ObjectId
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,7 +23,7 @@ from constants import (
                        PROCESS_STATUSES_RUNNING
                       )
 from modules.db_async import ConfigurableMongoDAO
-from modules.utils import load_yaml, file_mtime_changed
+from modules.utils import load_yaml, file_mtime_changed, run_ssh_async
 
 class Host(BaseModel):
     """
@@ -53,25 +54,48 @@ class Host(BaseModel):
                       description="Количество GPU",
                       ge=0
                      )
+    available: bool = Field(
+                            default=False,
+                            description="доступность хоста по SSH"
+                           )
     # Сколько ресурсов занято в данный момент процессами
     load: TaskLoad = TaskLoad()
     # Процент загруженности хоста
     occupation: float = 0
+
+    async def check_availability(
+                                 self
+                                ) -> None:
+        """
+        Проверяет, доступен ли у хост по SSH.
+        """
+        self.available = await self._ping_host()
+        return
 
     def is_able_to_run_process(
                                self,
                                process:Process
                               ) -> bool:
         """
-        Проверяет, достаточно ли у хоста ресурсов для запуска процесса.
+        Проверяет, доступен ли хост и достаточно ли у хоста ресурсов для запуска процесса.
         """
         able_to_run = all([
+                           self.available,
                            sum([self.cpus, -self.load.cpus, -process.load.cpus]) >= 0,
                            sum([self.ram, -self.load.ram, -process.load.ram]) >= 0,
                            sum([self.gpus, -self.load.gpus, -process.load.gpus]) >= 0
                          ])
         return able_to_run
 
+    async def _ping_host(
+                         self,
+                        ) -> bool:
+        """Проверяет доступность хоста через asyncssh (выполняет echo)."""
+        try:
+            await run_ssh_async(host=self.name, shell_command="echo ok", connect_timeout=5)
+            return True
+        except Exception:
+            return False
 
     def compute_load(
                      self,
@@ -108,6 +132,8 @@ class Host(BaseModel):
                                 2
                                )
         return None
+
+# TODO добавить логику ретраев коннекта к хосту
 
 class WatchdogProcessing(WatchdogBasic):
     """
@@ -459,6 +485,9 @@ class WatchdogProcessing(WatchdogBasic):
             # Подгружаем в процессы динамические переменные, указываемые в конфиге очереди
             processes_for_start.extend(queue.prepare_processes_for_start())
         if processes_for_start:
+            # Определяем доступность хостов
+            for host in self.hosts.values():
+                await host.check_availability()
             self.logger.debug("Processes to start: %s", ', '.join(processes_for_start))
             for proc_id in processes_for_start:
                 proc = self.processes.get(proc_id, None)
@@ -490,20 +519,29 @@ class WatchdogProcessing(WatchdogBasic):
         """
         Определяет хост, на котором будет запущен процесс.
         """
-        queue_hosts = [
-                       host for host_name, host in self.hosts.items()
-                       if host_name in self.queues[proc.queue].hosts
-                      ]
-        occupations = {
-                       h.occupation:h
-                       for h in queue_hosts
-                      }
-        # Начинаем с самого не нагруженного хоста
-        for _, host in sorted(occupations.items()):
-            if host.is_able_to_run_process(proc):
-                host.compute_load(proc, action='add')
-                return host.name
-        return None
+        # Определяем хосты, подходящие для процессы
+        available_hosts = [
+                           host for host_name, host in self.hosts.items()
+                           if all([
+                                   host_name in self.queues[proc.queue].hosts,
+                                   host.is_able_to_run_process(proc)
+                                  ])
+                          ]
+        proc_host = None
+        match len(available_hosts):
+            case 0:
+                self.logger.warning("Нет доступных хостов для процесса '%s'", proc.process_id)
+            case 1:
+                proc_host = available_hosts[0]
+            case _:
+                # Случайно выбираем двух кандидатов ('random 2' balancing)
+                candidates = random.sample(available_hosts, 2)
+                # Берём самый не нагруженный хост
+                proc_host = min(candidates, key=lambda h: h.occupation)
+        if proc_host is not None:
+            proc_host.compute_load(proc, action='add')
+            return proc_host.name
+        return
     
     async def stop_processes(
         self,
@@ -627,6 +665,10 @@ class WatchdogProcessing(WatchdogBasic):
                                             )
             if queue_unfinished_processes:
                 await queue.group_queue_processes(proc_set=queue_unfinished_processes)
+                for proc in queue_unfinished_processes:
+                    sample = await self.get_sample(proc.sample_db_id)
+                    if sample is not None:
+                        sample.store_process_status(proc)
             # сохраняем изменения статусов всех процессов очереди
             for proc in queue_unfinished_processes:
                 if proc._changed:
@@ -772,7 +814,9 @@ class WatchdogProcessing(WatchdogBasic):
             self._cfgs_mtime[cfg] = cfg_mtime
         return yaml_changed, data
 
-    async def _save_objects_to_db(self) -> None:
+    async def _save_objects_to_db(
+                                  self
+                                 ) -> None:
         """
         Сохраняет объекты в БД
         """
@@ -809,6 +853,7 @@ class WatchdogProcessing(WatchdogBasic):
         Получает длительность текущего цикла.
         """
         return max([0, (time.time() - self.watch_loop_start_time)])
+
     # ------------------------------------------------------------------
     # Действия при экстренной остановке
     # ------------------------------------------------------------------
@@ -885,7 +930,20 @@ class WatchdogProcessing(WatchdogBasic):
         self.stop_event.set()
         for proc in self.processes.values():
             if proc.pid_f is not None:
-                await self.stop_one_process(process=proc, reason='system_interrupt')
+                # Если exitcode-файл уже существует, процесс фактически завершился
+                if proc.exitcode_f.exists():
+                    await proc.check_running()
+                    self.logger.debug("Process '%s' уже завершился, статус: %s", 
+                                      proc.process_id, proc.status)
+                else:
+                    # Процесс ещё выполняется – прерываем
+                    await self.stop_one_process(process=proc, reason='system_interrupt')
+        # Немедленно сохраняем изменённые объекты, чтобы не потерять статусы
+        try:
+            await self._save_objects_to_db()
+            self.logger.info("[%s] Изменения сохранены при остановке", self.name)
+        except Exception:
+            self.logger.exception("[%s] Ошибка сохранения при остановке", self.name)
  
     async def cleanup(self):
         """Финальное сохранение изменений процессов и образцов перед остановкой."""

@@ -10,7 +10,6 @@ import shutil
 import yaml
 from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
-import pandas as pd 
 from pathlib import Path
 from typing import Callable, Final
 
@@ -527,6 +526,7 @@ def humanize_timedelta(
     """
     return humanize.precisedelta(delta, **format_mod)
     
+'''
 def dehumanize_timedelta(
                          humanized_timedelta:str
                         ) -> timedelta:
@@ -538,7 +538,9 @@ def dehumanize_timedelta(
 def dehumanize_timedelta_to_seconds(
                                     humanized_timedelta:str
                                    ) -> float:
-    return pd.to_timedelta(humanized_timedelta).total_seconds()
+    import pandas as pd 
+
+    return pd.to_timedelta(humanized_timedelta).total_seconds()'''
 
 def read_tsv(
              tsv:Path,

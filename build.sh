@@ -23,9 +23,9 @@ if pip show dunamai >/dev/null 2>&1; then
             -t "kbaybekov/bloodhound_gang:latest" \
             .
 
-        echo ">>> Публикация образа в Docker Hub"
-        docker push "kbaybekov/bloodhound_gang:$DOCKER_TAG"
-        docker push kbaybekov/bloodhound_gang:latest
+        #echo ">>> Публикация образа в Docker Hub"
+        #docker push "kbaybekov/bloodhound_gang:$DOCKER_TAG"
+        #docker push kbaybekov/bloodhound_gang:latest
 
         echo ">>> Готово: bloodhound_gang:$DOCKER_TAG (и latest) собраны и опубликованы."
     fi
