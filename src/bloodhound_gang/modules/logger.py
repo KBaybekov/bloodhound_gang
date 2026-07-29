@@ -6,11 +6,14 @@ from __future__ import annotations
 from logging import getLogger, Formatter, StreamHandler, INFO, DEBUG, ERROR
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from threading import Lock
 from csv import writer as csv_writer, QUOTE_ALL
 from io import StringIO
 from datetime import datetime
 
 from constants import LOG_BACKUP_COUNT, LOG_SIZE_MB, MAIN_DS, PROJECT_NAME, TIMEZONE
+
+# TODO Настроить автоматическое восстановление текущего файла логов в случае его удаления
 
 LOG_D = MAIN_DS.get('log_d', Path('/dev/null'))
 log_max_size = LOG_SIZE_MB * 1024 * 1024

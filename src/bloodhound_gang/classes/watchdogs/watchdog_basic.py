@@ -83,7 +83,7 @@ class WatchdogBasic(BaseModel):
                     self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
                     
                     # Обновляем интервал проверки для вотчдога
-                    self.check_interval = float(self.request_env_variable(self.interval_env_variable))
+                    self.check_interval = max([5, float(self.request_env_variable(self.interval_env_variable))])
                     sleep_time = max((self.check_interval - self.watch_loop_duration), 5)
                     try:
                         await asyncio.wait_for(self.stop_event.wait(), timeout=sleep_time)

@@ -133,7 +133,9 @@ class ResultBasecallingBasic(ResultBasic):
                                    **kwargs
                                   )  
         base_data = base.model_dump()
-        base_data.pop('type', None)
+        #base_data.pop('type', None)
+        for field_name in ("type", "source_files_metadata", "generated_pod5s_d", "multiqc_f", "basecall_data"):
+            base_data.pop(field_name, None)
         return cls(
             **base_data,
             source_files_metadata=source_files_metadata,
