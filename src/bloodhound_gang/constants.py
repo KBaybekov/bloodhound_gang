@@ -60,7 +60,8 @@ DELIMITER = '__'
 
 DEFAULT_BASECALL_MODELS = {
                            'r941': 'dna_r9.4.1_e8_hac@v3.3',
-                           'r1041': 'dna_r10.4.1_e8.2_400bps_hac@v5.2.0'
+                           'r1041': 'dna_r10.4.1_e8.2_400bps_hac@v5.2.0',
+                           'rp4': 'rna004_130bps_hac@v5.2.0'
                           }
 
 #unused
@@ -150,6 +151,7 @@ NEXTFLOW_TEMPLATE = """
                         -log {{ log_f }} \
                         run {{ pipeline }} \
                         -name {{ nextflow_id }} \
+                        -work-dir {{ work_d }} \
                         -params-file {{ params_file }} \
                         -c {{ nxf_cfg_organisation }} \
                         -c {{ nxf_cfg_pipeline }}
@@ -168,6 +170,9 @@ SSH_CONNECT_TIMEOUT = 10  # секунд на установку соедине�
 PID_WAIT_TIMEOUT = 30     # секунд на появление pid-файла
 PID_CHECK_INTERVAL = 0.5  # интервал проверки
 
+# Параллельность
+MAX_CONCURRENCY = 1000
+
 # Для тестирования и дебага
 DEBUG = False
 try:
@@ -176,3 +181,5 @@ try:
         DEBUG = True
 except Exception:
     pass
+
+NXF_HOME=os.environ['NXF_HOME']

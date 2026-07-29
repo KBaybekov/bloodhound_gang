@@ -23,6 +23,7 @@ from constants import (
                        PROCESS_STATUSES_FINISHED,
                        NEXTFLOW_CMD_VARIABLES,
                        NEXTFLOW_TEMPLATE,
+                       NXF_HOME,
                        PID_WAIT_TIMEOUT,
                        PID_CHECK_INTERVAL,
                        SSH_USER
@@ -364,10 +365,10 @@ class Process(BaseModel):
         if getattr(self, 'log_d') == Path('/dev/null'):
                         setattr(self, 'log_d', self.work_d / 'logs')
         attrs_n_paths = {
-                         'log_f': self.log_d / f'{self.task_id}_nextflow.log',
-                         'exitcode_f': self.log_d / f"{self.task_id}.exitcode",
-                         'stdout_f': self.log_d / f"{self.task_id}.out",
-                         'stderr_f': self.log_d / f"{self.task_id}.err"
+                         'log_f': self.log_d / f'{self.process_id}_nextflow.log',
+                         'exitcode_f': self.log_d / f"{self.process_id}.exitcode",
+                         'stdout_f': self.log_d / f"{self.process_id}.out",
+                         'stderr_f': self.log_d / f"{self.process_id}.err"
                         }
         for attr, path in attrs_n_paths.items():
             # если к нам попал Process из БД с выставленными путями, не трогаем их
@@ -612,7 +613,8 @@ class Process(BaseModel):
         cmd_vars.update({
                          'log_f':self.log_f.as_posix(),
                          'pipeline':self.pipeline,
-                         'nextflow_id':self.nextflow_id
+                         'nextflow_id':self.nextflow_id,
+                         'work_d':self.work_d.as_posix()
                         })
         for k, v in cmd_vars.items():
             if v is None:
@@ -755,8 +757,14 @@ class Process(BaseModel):
             remote_script = (
                 env_lines +
                 f"PIDFILE={shlex.quote(pid_file)}\n"
+                f"NXF_HOME={shlex.quote(NXF_HOME)}\n"
                 "echo $$ > ${PIDFILE}\n"
                 "trap \"rm -f ${PIDFILE}\" EXIT\n"
+                # подгружаем пользовательское окружение, чтобы стали доступны nextflow и другие утилиты
+                "source ~/.bashrc 2>/dev/null || true\n"
+                "source ~/.profile 2>/dev/null || true\n"
+                "export SDKMAN_DIR=\"$HOME/.sdkman\"\n"
+                "[[ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]] && source \"$HOME/.sdkman/bin/sdkman-init.sh\"\n"
                 f"""(\n{self.shell_command}\n) \
                     > {shlex.quote(stdout_file)} \
                     2> {shlex.quote(stderr_file)}\n"""

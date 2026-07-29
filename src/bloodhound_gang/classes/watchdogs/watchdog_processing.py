@@ -20,7 +20,8 @@ from constants import (
                        PROCESS_STATUSES_FINISHED,
                        PROCESS_STATUSES_UNFINISHED,
                        PROCESS_STATUSES_STARTED,
-                       PROCESS_STATUSES_RUNNING
+                       PROCESS_STATUSES_RUNNING,
+                       MAX_CONCURRENCY
                       )
 from modules.db_async import ConfigurableMongoDAO
 from modules.utils import load_yaml, file_mtime_changed, run_ssh_async
@@ -442,7 +443,7 @@ class WatchdogProcessing(WatchdogBasic):
                                        }
                 if new_sample_processes:
                     for proc in new_sample_processes.values():
-                        sample.store_process_status(proc)
+                        sample.store_process_data(proc)
                         self.existing_processes.add(proc.process_id)
                     sample.processes.created.update({task_id:list(new_sample_processes.keys())})
                     self.processes.update(new_sample_processes)
@@ -471,7 +472,9 @@ class WatchdogProcessing(WatchdogBasic):
                             self.logger.warning("Не найден хост для процесса %s", proc.process_id)
                 sample = await self.get_sample(proc.sample_db_id)
                 if sample is not None:
-                    sample.store_process_status(proc)
+                    sample.store_process_data(proc)
+                else:
+                    self.logger.error("Sample not found for process %s", proc.process_id)
                 self.queues[proc.queue].process_finished(proc)
 
     async def _start_new_processes(self) -> None:
@@ -507,7 +510,7 @@ class WatchdogProcessing(WatchdogBasic):
                             await asyncio.sleep(1)
                         sample = await self.get_sample(proc.sample_db_id)
                         if sample is not None:
-                            sample.store_process_status(proc)
+                            sample.store_process_data(proc)
                     else:
                         self.logger.warning("Not enough resources to start process %s", proc.process_id)
         return None
@@ -605,7 +608,7 @@ class WatchdogProcessing(WatchdogBasic):
                 del self.running_processes[process.process_id]
             sample = await self.get_sample(process.sample_db_id)
             if sample is not None:
-                sample.store_process_status(process)
+                sample.store_process_data(process)
             self.logger.debug("Process '%s' terminated and resources released", process.process_id)
         except Exception:
             self.logger.error("'Process %s': Ошибка при остановке процесса", process.process_id)
@@ -668,13 +671,13 @@ class WatchdogProcessing(WatchdogBasic):
                 for proc in queue_unfinished_processes:
                     sample = await self.get_sample(proc.sample_db_id)
                     if sample is not None:
-                        sample.store_process_status(proc)
+                        sample.store_process_data(proc)
             # сохраняем изменения статусов всех процессов очереди
             for proc in queue_unfinished_processes:
                 if proc._changed:
                     sample = await self.get_sample(proc.sample_db_id)
                     if sample is not None:
-                        sample.store_process_status(proc)
+                        sample.store_process_data(proc)
 
     async def _load_queues(
                      self,
@@ -695,14 +698,17 @@ class WatchdogProcessing(WatchdogBasic):
                 if queue_data:
                     try:
                         # Получаем информацию по ограничениям родительской очереди
-                        parent_concurrency = None
+                        parent_concurrency = MAX_CONCURRENCY
                         parent_name = queue_data.get('parent', None)
                         if parent_name is not None:
                             parent_data = next(
                                                (d for d in queue_datas if d.get('name', 'unknown') == parent_name),
                                                {}
                                               )
-                            parent_concurrency = parent_data.get('concurrency', None)
+                            parent_concurrency = parent_data.get('concurrency', MAX_CONCURRENCY)
+                            # Если очередь имеет родителя, хосты наследуются от него
+                            parent_hosts = parent_data.get('hosts', [])
+                            queue_data.update({'hosts':parent_hosts})
                         queue_data.update({'parent_concurrency':parent_concurrency})
                         # Формируем объект Queue
                         try:

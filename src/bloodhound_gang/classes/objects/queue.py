@@ -6,6 +6,7 @@ from logging import Logger
 
 from classes.objects.process import Process
 from constants import (
+                       MAX_CONCURRENCY,
                        PROCESS_STATUSES_CREATED,
                        PROCESS_STATUSES_PLANNED,
                        PROCESS_STATUSES_RUNNING
@@ -152,8 +153,7 @@ class Queue(BaseModel):
         
         data = data.copy()
         try:
-            # Для поиска необходимого конкарренси
-            vals_for_concurr = [0] 
+            
             # Создаём объекты SharedResource
             min_shared_resource = None
             shared_resources_data = data.get('shared_resources', [])
@@ -163,17 +163,17 @@ class Queue(BaseModel):
                     sh_r = SharedResource.from_dict(sh_data)
                     shared_resources.append(sh_r)
                 data['shared_resources'] = shared_resources
-                min_shared_resource = min([len(sh_r.values) for sh_r in shared_resources])
-            concurrency = data.get('concurrency')
+                # Ресурс с наименьшим числом значений будет влиять на параллельность
+                if shared_resources:
+                    min_shared_resource = min([len(sh_r.values) for sh_r in shared_resources])
 
-            if concurrency is not None:
-                vals_for_concurr = [concurrency]
-                # Учитываем ограничения родительской очереди
-                parent_concurrency = data.pop('parent_concurrency', None)
-                if parent_concurrency is not None:
-                    vals_for_concurr.append(parent_concurrency)
-                if min_shared_resource is not None:
-                    vals_for_concurr.append(min_shared_resource)
+            # Для поиска необходимого конкарренси
+            vals_for_concurr = [data.get('concurrency', MAX_CONCURRENCY)]
+            # Учитываем ограничения родительской очереди
+            vals_for_concurr.append(data.pop('parent_concurrency', MAX_CONCURRENCY))
+            if min_shared_resource is not None:
+                vals_for_concurr.append(min_shared_resource)
+
             data.update({'concurrency':min(vals_for_concurr)})
 
             # вместо списка - множество

@@ -13,8 +13,6 @@ from datetime import datetime
 
 from constants import LOG_BACKUP_COUNT, LOG_SIZE_MB, MAIN_DS, PROJECT_NAME, TIMEZONE
 
-# TODO Настроить автоматическое восстановление текущего файла логов в случае его удаления
-
 LOG_D = MAIN_DS.get('log_d', Path('/dev/null'))
 log_max_size = LOG_SIZE_MB * 1024 * 1024
 log_file = LOG_D / f'{PROJECT_NAME}_{datetime.now(TIMEZONE).strftime("%d-%m-%Y_%H:%M:%S")}.tsv'
@@ -65,6 +63,9 @@ class CSVRotatingFileHandler(RotatingFileHandler):
     """
     def __init__(self, filename, mode='a', maxBytes=0, backupCount=0, encoding=None, delay=False):
         super().__init__(filename, mode, maxBytes, backupCount, encoding, delay)
+        if self.lock is None:
+            self.lock = Lock()
+        self._cache = []  # кэш CSV-строк, записанных с момента последней ротации
         self._write_header_if_new()
 
     def _write_header_if_new(self):
@@ -74,10 +75,40 @@ class CSVRotatingFileHandler(RotatingFileHandler):
                 writer = csv_writer(f, quoting=QUOTE_ALL)
                 writer.writerow(CSV_COLUMNS)
 
+    def emit(self, record):
+        """
+        Переопределённый метод emit: добавляет запись в кэш, проверяет наличие файла
+        и при необходимости восстанавливает его со всем содержимым кэша.
+        """
+        if self.lock is None:
+            raise Exception('Lock not set!')
+        with self.lock:
+            # Форматируем запись
+            msg = self.format(record)
+            # Добавляем в кэш
+            self._cache.append(msg)
+            # Проверяем существование файла
+            if not Path(self.baseFilename).exists():
+                # Файл был удалён — пересоздаём и выгружаем кэш
+                self._write_header_if_new()
+                with open(self.baseFilename, 'a', encoding=self.encoding) as f:
+                    f.write('\n'.join(self._cache) + '\n')
+            else:
+                # Обычная запись
+                with open(self.baseFilename, 'a', encoding=self.encoding) as f:
+                    f.write(msg + '\n')
+            # Проверяем необходимость ротации
+            if self.maxBytes > 0 and Path(self.baseFilename).stat().st_size >= self.maxBytes:
+                self.doRollover()
+
     def doRollover(self):
-        super().doRollover()
-        # После ротации новый файл создан – запишем заголовок
-        self._write_header_if_new()
+        if self.lock is None:
+            raise Exception('Lock not set!')
+        with self.lock:
+            super().doRollover()
+            # После ротации новый файл создан – запишем заголовок
+            self._cache.clear()
+            self._write_header_if_new()
 
 _log_initialized = False
 _file_handler = None

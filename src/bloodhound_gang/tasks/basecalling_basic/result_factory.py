@@ -46,8 +46,8 @@ def result_factory(
                                             lambda f: f.name.endswith('multiqc_report.html')
                                             ]
                             }
-    CRITICAL_MAIN_ATTRIBUTES = set()
-    MAIN_ATTRIBUTES_BAD_VAL = None
+    CRITICAL_MAIN_ATTRIBUTES = {'model'}
+    MAIN_ATTRIBUTES_BAD_VAL = 'UNDEFINED'
     
     # забираем данные об успешности завершения общего процесса обработки
     is_processing_ok = False
@@ -96,6 +96,10 @@ def result_factory(
     
     specific_files = find_list_of_files(res_files, SPECIFIC_FILES_FILTERS)
     logger.debug("Found %d ubam file(s) for process '%s'", len(specific_files), process.process_id)
+    if not specific_files:
+        logger.error("Process '%s': No ubam files found", process.process_id)
+        is_processing_ok = False
+        return is_processing_ok, None
     for specific_f in specific_files:
 
         SPECIFIC_FILES_ATTRIBUTES = {

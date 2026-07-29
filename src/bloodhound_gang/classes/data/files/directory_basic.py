@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class DirectoryBasic(BaseModel):
     """
@@ -18,9 +18,26 @@ class DirectoryBasic(BaseModel):
     @field_validator('path', mode='before')
     @classmethod
     def resolve_path(cls, v: Path) -> Path:
+        if isinstance(v, str):
+            return Path(v).resolve()
         return v.resolve()  # Преобразуем в абсолютный путь
 
-    @field_validator('owner', 'created', 'permissions', 'size_bytes', mode='before')
+    @model_validator(mode='after')
+    def compute_metadata(self):
+        """Вычисляет метаданные файла на основе path, если они не заданы."""
+        if self.path is None:
+            return self
+        if self.owner is None:
+            object.__setattr__(self, 'owner', self.path.owner())
+        if self.created is None:
+            object.__setattr__(self, 'created', datetime.fromtimestamp(self.path.stat().st_ctime))
+        if self.permissions is None:
+            object.__setattr__(self, 'permissions', oct(self.path.stat().st_mode))
+        if self.size_bytes is None:
+            object.__setattr__(self, 'size_bytes', self.path.stat().st_size)
+        return self
+
+"""    @field_validator('owner', 'created', 'permissions', 'size_bytes', mode='before')
     @classmethod
     def compute_file_metadata(cls, v, info) -> ...:
         # Если поле не передано, вычисляем из path
@@ -39,3 +56,4 @@ class DirectoryBasic(BaseModel):
         if info.field_name == 'size_bytes':
             return path.stat().st_size
         return v
+"""

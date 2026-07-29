@@ -9,6 +9,8 @@ from pydantic import ConfigDict, ValidationError
 from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.objects.sample import Sample
 from constants import (
+                       BASECALL_DS_NAMES,
+                       SOURCE_DS_NAMES,
                        DATA_GROUPS_FOR_WATCHING,
                        DB_COLLECTION_SAMPLES,
                        DB_COLLECTION_TREES,
@@ -418,6 +420,19 @@ class WatchdogSource(WatchdogBasic):
         """
         Создаёт новый объект Sample и в случае успеха при создании сохраняет его в соответствующую коллекцию в БД.
         """
+        def _is_sample_dir(batch_data: Dict[str, Dict[str, float]]) -> bool:
+            """
+            Возвращает True, если в каком-либо батче есть подпапка, характерная для источника Nanopore.
+            """
+            if not batch_data:
+                return False
+            target_names = SOURCE_DS_NAMES | BASECALL_DS_NAMES
+            for inner_dir in batch_data.values():
+                # inner_dir – словарь {имя_файла/папки: размер}
+                if any(name in target_names for name in inner_dir):
+                    return True
+            return False
+        
         if sample_path in self._sample_ds_DB.keys():
             # Директория была ранее удалена
             if self._sample_ds_DB[sample_path]:
@@ -428,6 +443,10 @@ class WatchdogSource(WatchdogBasic):
                                                 restored=True
                                                 )
                 return True
+            return False
+
+        if not _is_sample_dir(batch_data):
+            self.logger.debug('Directory is not sample grade, skipping: %s', sample_path.as_posix())
             return False
         try:
             sample_size = self._get_sample_file_size(batch_data)

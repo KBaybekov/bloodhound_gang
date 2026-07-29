@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from constants import KNOWN_FILE_TYPES
 
 class FileBasic(BaseModel):
@@ -20,6 +20,8 @@ class FileBasic(BaseModel):
     @field_validator('path', mode='before')
     @classmethod
     def resolve_path(cls, v: Path) -> Path:
+        if isinstance(v, str):
+            return Path(v).resolve()
         return v.resolve()  # Преобразуем в абсолютный путь
 
     @field_validator('format', mode='before')
@@ -38,7 +40,34 @@ class FileBasic(BaseModel):
                 if suffix.removeprefix('.').lower() == ext:
                     return 'FASTQ' if ext == 'fq' else ext.upper()
         return 'UNKNOWN'
-
+    
+    @model_validator(mode='after')
+    def compute_metadata(self):
+        """Вычисляет метаданные файла на основе path, если они не заданы."""
+        if self.path is None:
+            return self
+        # format
+        if self.format is None:
+            for ext in KNOWN_FILE_TYPES:
+                for suffix in reversed(self.path.suffixes):
+                    if suffix.removeprefix('.').lower() == ext:
+                        object.__setattr__(self, 'format', 'FASTQ' if ext == 'fq' else ext.upper())
+                        break
+                if self.format:
+                    break
+            if self.format is None:
+                object.__setattr__(self, 'format', 'UNKNOWN')
+        # остальные поля
+        if self.owner is None:
+            object.__setattr__(self, 'owner', self.path.owner())
+        if self.created is None:
+            object.__setattr__(self, 'created', datetime.fromtimestamp(self.path.stat().st_ctime))
+        if self.permissions is None:
+            object.__setattr__(self, 'permissions', oct(self.path.stat().st_mode))
+        if self.size_bytes is None:
+            object.__setattr__(self, 'size_bytes', self.path.stat().st_size)
+        return self
+"""
     @field_validator('owner', 'created', 'permissions', 'size_bytes', mode='before')
     @classmethod
     def compute_file_metadata(cls, v, info) -> ...:
@@ -58,3 +87,4 @@ class FileBasic(BaseModel):
         if info.field_name == 'size_bytes':
             return path.stat().st_size
         return v
+"""

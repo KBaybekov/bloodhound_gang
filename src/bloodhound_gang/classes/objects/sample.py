@@ -3,6 +3,7 @@ from typing import Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from classes.objects.process import Process
+    from classes.data.files.fastq_ont import FastqONT
 
 from bson import ObjectId
 from datetime import datetime
@@ -14,8 +15,8 @@ from classes.data.source import SourceData
 from classes.data.files.fastq_ont import FastqONT
 from classes.data.result_union import ResultUnion
 
-from tasks.basecalling_basic.result import ResultBasecallingBasic
 from constants import (
+                       DEFAULT_BASECALL_MODELS,
                        PASS_SOURCE_DS_NAMES,
                        PASS_BASECALL_DS_NAMES,
                        SPECIES,
@@ -84,6 +85,9 @@ class ProcessData(BaseModel):
                         coll[task_id].remove(process_id)
                     except ValueError:
                         pass
+                    # Если список стал пустым – удаляем ключ, чтобы не оставалось "мусора"
+                    if not coll[task_id]:
+                        del coll[task_id]
             setattr(self, collection, coll)
         return None
 
@@ -181,8 +185,10 @@ class Sample(BaseModel):
         (не выполняется при выгрузке из БД)
         """
         def create_fastq_basecall_record(batch_id:str, fastq_d:Path):
-            pore='r941'
-            model='dna_r9.4.1_e8_hac@v3.3'
+            from classes.data.results.result_basecalling_basic import ResultBasecallingBasic
+
+            pore=self.batches[batch_id].pore
+            model=DEFAULT_BASECALL_MODELS.get(pore, 'unknown_model') # 'dna_r9.4.1_e8_hac@v3.3'
             molecule = 'rna' if self.group.lower() == 'rna' else 'dna'
             task_name='basecalling_wet_lab'
             task_version='xxxxxx'
@@ -324,7 +330,7 @@ class Sample(BaseModel):
                 self._original[field_name] = value
         return None
 
-    def store_process_status(
+    def store_process_data(
                              self,
                              proc:Process
                             ) -> None:
@@ -336,6 +342,10 @@ class Sample(BaseModel):
                                       task_id=proc.task_id,
                                       status=proc.status
                                      )
+        if proc._result is None:
+            return
+        self.data.result[proc.process_id] = proc._result
+        return
 
     def source_was_removed(self):
         """
