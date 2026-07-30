@@ -757,12 +757,12 @@ class Process(BaseModel):
             remote_script = (
                 env_lines +
                 f"PIDFILE={shlex.quote(pid_file)}\n"
-                f"NXF_HOME={shlex.quote(NXF_HOME)}\n"
                 "echo $$ > ${PIDFILE}\n"
                 "trap \"rm -f ${PIDFILE}\" EXIT\n"
                 # подгружаем пользовательское окружение, чтобы стали доступны nextflow и другие утилиты
                 "source ~/.bashrc 2>/dev/null || true\n"
                 "source ~/.profile 2>/dev/null || true\n"
+                f"export NXF_HOME={shlex.quote(NXF_HOME)}\n"
                 "export SDKMAN_DIR=\"$HOME/.sdkman\"\n"
                 "[[ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]] && source \"$HOME/.sdkman/bin/sdkman-init.sh\"\n"
                 f"""(\n{self.shell_command}\n) \

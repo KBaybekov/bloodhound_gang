@@ -4,7 +4,9 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()
+ENV_PATH = 'conf/.env'
+
+load_dotenv(ENV_PATH)
 
 def request_env_variable(
                          variable_name:str
@@ -12,7 +14,7 @@ def request_env_variable(
     """
     Загружает .env-файл и возвращает значение запрошенной переменной 
     """
-    load_dotenv(override=True)
+    load_dotenv(ENV_PATH, override=True)
     return os.environ[variable_name]
 
 def parse_str_for_variables_names(
