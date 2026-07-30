@@ -33,6 +33,7 @@ from modules.utils import (
                            is_integer,
                            decode_process_id,
                            objects_in_dir,
+                           obj_size_in_Gb,
                            load_callable,
                            load_yaml,
                            render_text,
@@ -316,6 +317,7 @@ class Process(BaseModel):
         return Process(
                        process_id=process_id,
                        _id=ObjectId(),
+                       load=task.load,
                        sample_id=sample_id,
                        sample_db_id=sample.db_id,
                        tags=tags,
@@ -454,9 +456,9 @@ class Process(BaseModel):
             return None
 
         def capture_log_files() -> None:
-            if self.log_d is not None:
-                if self.log_d.exists():
-                    try:
+            try:
+                if self.log_d is not None:
+                    if self.log_d.exists():
                         log_files = objects_in_dir(dir_path=self.log_d, recursive=True, files_only=True)
                         self.dag_f = next(
                                           (f for f in log_files
@@ -482,24 +484,18 @@ class Process(BaseModel):
                                                   ['timeline' in f.stem,
                                                    f.suffix == '.html'])),
                                           None)
-                        self.software_list_f = next(
-                                          (f for f in log_files
-                                           if all(
-                                                  ['software' in f.stem,
-                                                   f.suffix == '.yml'])),
-                                          None)
-                    except Exception:
-                        logger.error("Process '%s'. Error during searching log files in dir %s", self.process_id, self.log_d.as_posix())
-                else:
-                    logger.error("Process '%s'. Log dir doesn't exist: %s", self.process_id, self.log_d.as_posix())
+                    else:
+                        logger.error("Process '%s'. Log dir doesn't exist: %s", self.process_id, self.log_d.as_posix())
+            except Exception:
+                logger.error("Process '%s'. Error during searching log files", self.process_id)
 
         async def capture_software_versions() -> None:
-            """
-            Парсит software_versions.yml 
-            """
-            if self.software_list_f is not None:
-                self.software_versions = await load_yaml(self.software_list_f)
-            return None
+                """
+                Парсит software_versions.yml 
+                """
+                if self.software_list_f is not None:
+                    self.software_versions = await load_yaml(self.software_list_f)
+                return None
 
         try:
             # Проверяем, завершился ли процесс
@@ -509,11 +505,13 @@ class Process(BaseModel):
                 logger.debug("Process '%s': Exit code file found: %s", self.process_id, self.exitcode_f.as_posix())
                 # Ищем логи
                 capture_log_files()
-                # Собираем статистику
-                await capture_software_versions()
+                self.res_d_size_GB = obj_size_in_Gb(obj=self.res_d)
+                self.work_d_size_GB = obj_size_in_Gb(obj=self.work_d)
                 # Получаем специфичную для задания информацию и отметку, успешно ли завершён процесс (exitcode=0 не показатель)
                 if self.result_factory_func is not None:
                     is_processing_ok, self._result = self.result_factory_func(self)
+                    # Пробуем получить данные о версиях
+                    await capture_software_versions()
                     if all([
                         is_processing_ok,
                         self.exitcode == '0',
@@ -763,7 +761,7 @@ class Process(BaseModel):
                 # подгружаем пользовательское окружение, чтобы стали доступны nextflow и другие утилиты
                 "source ~/.bashrc 2>/dev/null || true\n"
                 "source ~/.profile 2>/dev/null || true\n"
-                f"export NXF_HOME={shlex.quote(NXF_HOME)}\n"
+                f"export NXF_HOME={shlex.quote(NXF_HOME)} && cd $NXF_HOME\n"
                 "export SDKMAN_DIR=\"$HOME/.sdkman\"\n"
                 "[[ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]] && source \"$HOME/.sdkman/bin/sdkman-init.sh\"\n"
                 f"""(\n{self.shell_command}\n) \
