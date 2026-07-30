@@ -1,3 +1,2 @@
-from classes.objects.task import Task
+import nextflow
 
-Task.generate_task_yaml('data_other/tasks.csv')

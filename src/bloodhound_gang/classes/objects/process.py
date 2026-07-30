@@ -47,6 +47,7 @@ from modules.logger import get_logger
 logger = get_logger(__name__)
 
 # TODO TaskRuntimeConfig, TaskExecutionParams - создать классы, содержащие параметры, задаваемые в Task и используемые в Process 
+# BACKLOG найти наилучший способ извлечения данных о ходе пайплайна Nextflow (например, плагины (nf-weblog?) или nextflow log basecalling_basic-bab8-770130661501-29_07_2026_21_04_42 -f 'attempt,complete,container,cpu_model,cpus,disk,duration')
 
 class Process(BaseModel):
     """

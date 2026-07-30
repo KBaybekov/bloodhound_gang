@@ -134,7 +134,6 @@ async def main():
                 # Закрываем DAO
         try:
             await dao.stop_dao()
-            logger.info("Соединение с MongoDB закрыто")
         except Exception as e:
             logger.exception("Ошибка при остановке DAO.")
         logger.info("Главный процесс обработки данных завершён")

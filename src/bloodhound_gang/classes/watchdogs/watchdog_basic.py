@@ -68,6 +68,14 @@ class WatchdogBasic(BaseModel):
 
     async def _run_loop(self):
         """Главный цикл наблюдения."""
+        def update_check_interval() -> None:
+            # Обновляем интервал проверки для вотчдога
+            old_interval = self.check_interval
+            self.check_interval = max([5, float(self.request_env_variable(self.interval_env_variable))])
+            if old_interval != self.check_interval:
+                self.logger.debug("Updated check_interval: %d -> %d", old_interval, self.check_interval)
+            return
+
         self.logger.debug("Main watchdog loop starting...")
         try:
             while not self.stop_event.is_set():
@@ -82,13 +90,28 @@ class WatchdogBasic(BaseModel):
                     self.watch_loop_duration = loop_end_time - self.watch_loop_start_time
                     self.logger.debug("Loop ended, duration: %.3f sec.", self.watch_loop_duration)
                     
-                    # Обновляем интервал проверки для вотчдога
-                    self.check_interval = max([5, float(self.request_env_variable(self.interval_env_variable))])
+                    update_check_interval()
                     sleep_time = max((self.check_interval - self.watch_loop_duration), 5)
-                    try:
+                    while sleep_time > 0 and not self.stop_event.is_set():
+                        chunk = min(sleep_time, 15)   # ждём не более 15 секунд
+                        try:
+                            await asyncio.wait_for(self.stop_event.wait(), timeout=chunk)
+                        except asyncio.TimeoutError:
+                            # прошло chunk секунд – обновляем интервал из переменной окружения
+                            update_check_interval()
+                            elapsed = time.time() - self.watch_loop_start_time
+                            # Если пора запускать следующий watch – выходим из цикла
+                            sleep_time = self.check_interval - elapsed
+                            if sleep_time <= 0:
+                                break
+                               # без ограничения min=5
+                        else:
+                            # stop_event был установлен – немедленно выходим
+                            break
+                    '''try:
                         await asyncio.wait_for(self.stop_event.wait(), timeout=sleep_time)
                     except asyncio.TimeoutError:
-                        pass
+                        pass'''
                 except asyncio.CancelledError:
                     self.logger.info(f"[{self.name}] Задача отменена")
                     break

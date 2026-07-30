@@ -25,16 +25,18 @@ ENV APP_VERSION=$VERSION
 COPY \
 #--chown=bloodhound_gang:bloodhound_gang \
 --exclude=src/data_other \
---exclude=.env \
+--exclude=conf/.env \
 #--exclude=entrypoint.sh \
 --exclude=Dockerfile \
 --exclude=docker-compose.yml \
 --exclude=build.sh \
+--exclude=run.sh \
+--exclude=stop.sh \
 --exclude=grafana/ \
 --exclude=prometheus \
 --exclude=.vscode \
 --exclude=logs/ \
-. . 
+. .
 
 RUN chmod -R a+rX /bloodhound_gang && \
     chmod 777 /bloodhound_gang/.cache /bloodhound_gang/.local 2>/dev/null || true

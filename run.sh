@@ -5,4 +5,5 @@ export SSH_USER=$(whoami)
 getent passwd $(whoami) > ./.docker-passwd
 getent group $(id -g) > ./.docker-group
 
-docker compose up -d --pull always
+#docker compose up -d --pull always
+docker compose --env-file $PWD/conf/.env up -d
