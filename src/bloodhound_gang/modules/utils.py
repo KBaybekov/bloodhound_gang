@@ -66,7 +66,14 @@ def obj_size_in_Gb(
             if obj.is_file():
                 size = obj.stat().st_size
             else:
-                if extension is None:
+                # рекурсивно собираем все файлы
+                files = obj.rglob('*')
+                if extension:
+                    files = (f for f in files if f.is_file() and f.name.endswith(extension))
+                else:
+                    files = (f for f in files if f.is_file())
+                size = sum(f.stat().st_size for f in files)
+                """if extension is None:
                     size = sum([
                                 f.stat().st_size
                                 for f in obj.iterdir()
@@ -76,7 +83,7 @@ def obj_size_in_Gb(
                                 f.stat().st_size
                                 for f in obj.iterdir()
                                 if f.name.endswith(extension)
-                            ])
+                            ])"""
 
         except FileNotFoundError:
             logger.exception("Объект не найден: %s", obj.as_posix())

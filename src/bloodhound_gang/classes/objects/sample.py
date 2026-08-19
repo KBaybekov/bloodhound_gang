@@ -36,16 +36,16 @@ logger = get_logger(__name__)
 
 
 class SampleData(BaseModel):
-    source: Dict[str, SourceData] = Field(
-                                          default={},
-                                          description='Хранение метаданных для папки с исходными данными',
-                                          examples=[{'source.path':'SourceData'}]
+    source: list[SourceData] = Field(
+                                     default=[],
+                                     description='Хранение метаданных для папки с исходными данными',
+                                     examples=['SourceData']
                                          )
-    result: Dict[str, ResultUnion] = Field(
-                                           default={},
-                                           description='Хранение метаданных для результатов обработки данных',
-                                           examples=[{'process_id':'ResultData'}]
-                                          )
+    result: list[ResultUnion] = Field(
+                                      default=[],
+                                      description='Хранение метаданных для результатов обработки данных',
+                                      examples=[['ResultData']]
+                                     )
 
 
 class ProcessData(BaseModel):
@@ -215,9 +215,12 @@ class Sample(BaseModel):
                                                        molecule=molecule
                                                       ))
             
-            self.data.result.update({process_id: basecall_rec})
+            self.data.result.append(basecall_rec)
             return None
 
+        if __context and __context.get('from_db'):
+            self._update_original()
+            return
         if 'sample_id' not in self.model_fields_set:
             self.sample_id = self.source_d.name
             self.species = SPECIES.get(self.source_d.parent.name, 'human')
@@ -255,7 +258,7 @@ class Sample(BaseModel):
                                                 batch_id=batch_id,
                                                 path=batch.path / source_d_name
                                                )
-                            self.data.source.update({batch_id: source})
+                            self.data.source.append(source)
                     if batch.basecalled_data_ds:
                         basecalled_d_name = next(
                                                  (f for f in batch.basecalled_data_ds
@@ -344,7 +347,7 @@ class Sample(BaseModel):
                                      )
         if proc._result is None:
             return
-        self.data.result[proc.process_id] = proc._result
+        self.data.result.append(proc._result)
         return
 
     def source_was_removed(self):
@@ -371,6 +374,6 @@ class Sample(BaseModel):
         Добавить запись в историю изменений
         """
         if msg:
-            self.history.update({get_now_time(): msg})
+            self.history.update({get_now_time(): msg + '\n'})
         else:
             logger.warning(f"Empty message for sample {self.sample_id}")

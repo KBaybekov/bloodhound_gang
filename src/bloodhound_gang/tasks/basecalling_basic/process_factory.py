@@ -19,9 +19,14 @@ def process_factory(
     Создаёт процессы, используя отдельный для конкретного задания алгоритм
     """
     processes = {}
-    for batch_id, source in sample.data.source.items():
-    #for batch_id,batch in sample.batches.items():
+    for source in sample.data.source:
+        batch_id = source.batch_id
         basecall_data = next(
+                             (d for d in sample.data.result 
+                              if d.type == TASK_NAME and batch_id in d.tags),
+                             None
+                            )
+        """basecall_data = next(
                              (
                               d for d in sample.data.result.values()
                               if all([
@@ -30,7 +35,7 @@ def process_factory(
                                      ])
                              ),
                              None
-                            )
+                            )"""
         if basecall_data is None:
             # С помощью этих айдишников мы персонифицируем этот процесс под конкретный сет данных
             special_task_ids = [batch_id]

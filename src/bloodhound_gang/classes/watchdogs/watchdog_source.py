@@ -103,9 +103,9 @@ class WatchdogSource(WatchdogBasic):
                                 collection=self.db_collection_file_trees,
                                 query={"root_path": self.source_folder.as_posix()}
                                )
-        tree = doc["tree"] if doc else None
+        tree = doc.get("tree") if doc else None
         self.logger.debug("Loaded stored tree: %s", "present" if tree else "absent")
-        return doc["tree"] if doc else None
+        return tree
 
     async def _save_tree(
                    self,
@@ -290,7 +290,7 @@ class WatchdogSource(WatchdogBasic):
                                   "Batch set changed for sample %s: new=%s, removed=%s",
                                   base_path.name, new_batches, removed_batches
                                  )
-                await self._mark_sample_changed(base_path, change_msg)
+                await self._mark_sample_changed(base_path, change_msg, new_size=new_files_size if size_changed else 0.0)
                 changed = True
 
         else: # уровни group, subgroup, sample

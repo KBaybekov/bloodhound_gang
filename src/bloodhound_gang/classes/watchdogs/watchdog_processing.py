@@ -234,11 +234,11 @@ class WatchdogProcessing(WatchdogBasic):
         """
         yml_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
         if yml_changed:
-            self.tasks.clear()
             # создаём объекты Task
             task_list:list[dict] = []
             try:
                 task_list = next(iter(data.values()), [])
+                self.tasks.clear()
             except Exception:
                 pass
             for task_data in task_list:
@@ -688,10 +688,10 @@ class WatchdogProcessing(WatchdogBasic):
         """
         cfg_changed, data = await self.load_cfg_yaml_if_it_changed(yaml)
         if cfg_changed:
-            self.queues.clear()
             queue_datas:list[dict] = []
             try:
                 queue_datas = next(iter(data.values()), [])
+                self.queues.clear()
             except Exception:
                 pass
             for queue_data in queue_datas:
@@ -784,6 +784,7 @@ class WatchdogProcessing(WatchdogBasic):
             hosts_datas = []
             try:
                 hosts_datas = next(iter(data.values()), [])
+                self.hosts.clear()
             except Exception:
                 pass
             for host_data in  hosts_datas:

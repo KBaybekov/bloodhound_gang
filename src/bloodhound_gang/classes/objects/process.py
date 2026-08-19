@@ -343,7 +343,7 @@ class Process(BaseModel):
                      'work_d', 'res_d', 'exitcode_f', 'stdout_f',
                      'stderr_f', 'log_d', 'log_f', 'report_f',
                      'trace_f', 'timeline_f', 'dag_f', 'params_f',
-                     'software_list_f']:
+                     'software_list_f', 'pid_f', 'command_f']:
             val = doc.get(attr, None)
             if val is not None and isinstance(val, str):
                 doc[attr] = Path(val)
@@ -509,7 +509,10 @@ class Process(BaseModel):
                 self.work_d_size_GB = obj_size_in_Gb(obj=self.work_d)
                 # Получаем специфичную для задания информацию и отметку, успешно ли завершён процесс (exitcode=0 не показатель)
                 if self.result_factory_func is not None:
-                    is_processing_ok, self._result = self.result_factory_func(self)
+                    is_processing_ok, self._result = await asyncio.to_thread(
+                                                                             self.result_factory_func,
+                                                                             self
+                                                                            )
                     # Пробуем получить данные о версиях
                     await capture_software_versions()
                     if all([
@@ -684,7 +687,7 @@ class Process(BaseModel):
                 self.status = 'failed[bad_command_file]' # PROCESS_STATUSES_FINISH_FAIL
                 return
 
-            logger.debug("Запуск AsyncSSH: host=%s, команда=%s", self.host, full_cmd)
+            logger.debug("Process '%s': Запуск AsyncSSH, host=%s", self.process_id, self.host)
             try:
                 await run_ssh_async(
                                     host=self.host,
@@ -747,6 +750,7 @@ class Process(BaseModel):
             stdout_file = self.stdout_f.as_posix()
             stderr_file = self.stderr_f.as_posix()
             exitcode_file = self.exitcode_f.as_posix()
+            work_d = self.work_d.as_posix()
 
             # Подготавливаем экспорт переменных окружения
             env_lines = ""
@@ -761,8 +765,9 @@ class Process(BaseModel):
                 # подгружаем пользовательское окружение, чтобы стали доступны nextflow и другие утилиты
                 "source ~/.bashrc 2>/dev/null || true\n"
                 "source ~/.profile 2>/dev/null || true\n"
-                f"export NXF_HOME={shlex.quote(NXF_HOME)} && cd $NXF_HOME\n"
+                f"export NXF_HOME={shlex.quote(NXF_HOME)}\n"
                 "export SDKMAN_DIR=\"$HOME/.sdkman\"\n"
+                f"cd {shlex.quote(work_d)}\n"
                 "[[ -s \"$HOME/.sdkman/bin/sdkman-init.sh\" ]] && source \"$HOME/.sdkman/bin/sdkman-init.sh\"\n"
                 f"""(\n{self.shell_command}\n) \
                     > {shlex.quote(stdout_file)} \

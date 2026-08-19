@@ -48,7 +48,7 @@ def result_factory(
                                             ]
                             }
     CRITICAL_MAIN_ATTRIBUTES = {'multiqc_f'}
-    MAIN_ATTRIBUTES_BAD_VAL = 'UNDEFINED'
+    MAIN_ATTRIBUTES_BAD_VAL = None
     
     # забираем данные об успешности завершения общего процесса обработки
     is_processing_ok = False
@@ -120,8 +120,8 @@ def result_factory(
 
         SPECIFIC_FILES_ATTRIBUTES = {
                                     'batch': next((iter(process.tags)), "UNKNOWN_BATCH"),
-                                    'pore': specific_f.name.split('-')[-1],
-                                    'molecule': specific_f.name.split('-')[-1],
+                                    'pore': specific_f.name.split('-')[-1].removesuffix('.ubam'),
+                                    'molecule': specific_f.name.split('-')[-2],
                                     'model': define_used_ubam_model(res_files, specific_f.stem),
                                     'qc_sequali_json': find_one_file(
                                                                     res_files,
