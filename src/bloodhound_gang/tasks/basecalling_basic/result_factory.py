@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from classes.objects.process import Process
@@ -179,5 +178,5 @@ def define_used_ubam_model(
                                             lambda f: ubam_id in f.name
                                             ])
     if ubam_model_f is not None:
-        used_model=  ubam_model_f.read_text().strip()
+        used_model = ubam_model_f.read_text(encoding='utf-8').split()[0].strip()
     return used_model

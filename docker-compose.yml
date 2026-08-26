@@ -32,7 +32,7 @@ services:
 
       # Если существует внешняя папка tasks/, она затеняет src/tasks/
       # Используем bind mount с опциональным созданием (если папки нет, Docker создаст пустую)
-      - ./tasks:/bloodhound_gang/src/tasks:ro
+      - ./tasks:/bloodhound_gang/src/bloodhound_gang/tasks:ro
 
       # Рабочие директории (пути берутся из .env, должны существовать на хосте)
       - ${SRC_D}:${SRC_D}:ro

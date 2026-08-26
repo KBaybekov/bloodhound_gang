@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Генерирует YAML-файл с заданиями на основе данных из CSV
 """
@@ -5,7 +7,7 @@ import sys
 from pathlib import Path
 
 proj_dir = Path(__file__).resolve().parents[2]
-print(proj_dir.as_posix(), sys.path)
+#print(proj_dir.as_posix(), sys.path)
 sys.path.append(proj_dir.as_posix())
 
 if __name__ == '__main__':

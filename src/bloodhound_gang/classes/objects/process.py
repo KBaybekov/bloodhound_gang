@@ -366,7 +366,7 @@ class Process(BaseModel):
     @model_validator(mode='after')
     def set_log_objs(self) -> 'Process':
         if getattr(self, 'log_d') == Path('/dev/null'):
-                        setattr(self, 'log_d', self.work_d / 'logs')
+            setattr(self, 'log_d', self.work_d / 'logs')
         attrs_n_paths = {
                          'log_f': self.log_d / f'{self.process_id}_nextflow.log',
                          'exitcode_f': self.log_d / f"{self.process_id}.exitcode",

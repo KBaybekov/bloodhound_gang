@@ -231,7 +231,7 @@ class Task(BaseModel):
                             'priority': True if row['priority'].lower() == 'true' else False,
                             'load': split_str_to_dict(row['load'], mode='load'),
                             'environment_variables': split_str_to_dict(row['environment_variables']),
-                            'timeout': float(row['timeout'])
+                            'timeout': round(float(row['timeout']), 0)
                            })
                 # Проверяем валидность данных - пробуем создать объект Task
                 try:
@@ -242,7 +242,6 @@ class Task(BaseModel):
                 else:
                     ready_data.append(row)
             return {'tasks': ready_data}
-            
 
         except IndexError:
             logger.exception("TSV не содержит строк данных")
@@ -276,4 +275,3 @@ class Task(BaseModel):
             len(processes), self.task_id, sample.sample_id
         )
         return processes
-
