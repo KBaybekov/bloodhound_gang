@@ -28,7 +28,12 @@ class DirectoryBasic(BaseModel):
         if self.path is None:
             return self
         if self.owner is None:
-            object.__setattr__(self, 'owner', self.path.owner())
+            try:
+                owner = self.path.owner()
+                object.__setattr__(self, 'owner', owner)
+            except (KeyError, ImportError, OSError, AttributeError):
+                # UID может отсутствовать в /etc/passwd контейнера
+                pass            
         if self.created is None:
             object.__setattr__(self, 'created', datetime.fromtimestamp(self.path.stat().st_ctime))
         if self.permissions is None:
