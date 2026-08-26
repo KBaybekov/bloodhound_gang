@@ -44,7 +44,7 @@ SPECIES = {
 
 # Имена подпапок батчей
 SOURCE_DS_NAMES = {
-                   'fast5_pass', 'fast5_fail',
+                   'fast5', 'fast5_pass', 'fast5_fail',
                    'pod5','pod5_pass', 'pod5_fail'
                   }
 PASS_SOURCE_DS_NAMES = {'fast5_pass', 'pod5', 'pod5_pass'}
