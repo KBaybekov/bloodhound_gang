@@ -2,22 +2,25 @@ from __future__ import annotations
 from typing import Dict, List
 
 import time
+import threading
 import asyncio
 from pathlib import Path
 from pydantic import ConfigDict, ValidationError
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 
 from classes.watchdogs.watchdog_basic import WatchdogBasic
 from classes.objects.sample import Sample
 from constants import (
+                       ARTIFACTS_D,
                        BASECALL_DS_NAMES,
                        SOURCE_DS_NAMES,
                        DATA_GROUPS_FOR_WATCHING,
                        DB_COLLECTION_SAMPLES,
-                       DB_COLLECTION_TREES,
-                       MAIN_DS
+                       MAIN_DS,
+                       DEBUG
                       )
 from modules.db_async import ConfigurableMongoDAO
-from modules.utils import obj_size_in_Gb
+from modules.utils import load_yaml, obj_size_in_Gb, save_yaml
 
 class WatchdogSource(WatchdogBasic):
     """
@@ -47,7 +50,8 @@ class WatchdogSource(WatchdogBasic):
         self.source_folder = MAIN_DS['src_d']
         self.work_folder = MAIN_DS['work_d']
         self.res_folder = MAIN_DS['res_d']
-        self.db_collection_file_trees = DB_COLLECTION_TREES
+        self.artifacts_d = ARTIFACTS_D
+        self.tree_f = self.artifacts_d / f"TREE_{self.source_folder.as_posix().removesuffix('/').replace('/', '--')}.yaml"
         self.db_collection_samples = DB_COLLECTION_SAMPLES
         self._sample_ds_DB: Dict[Path, bool] = {}
         self.samples_to_DB: List[dict] = []
@@ -55,6 +59,9 @@ class WatchdogSource(WatchdogBasic):
         self.max_depth = max_depth  # current source_d structure: group->subgroup->sample->batch->ONT batch files
         self.batch_depth = max_depth
         self.sample_depth = max_depth - 1
+
+        self._scan_executor = ThreadPoolExecutor(max_workers=16)
+        self._samples_lock = threading.Lock()
 
         # метрики
         self.samples_in_filesystem_found = 0
@@ -77,8 +84,8 @@ class WatchdogSource(WatchdogBasic):
     # Работа с деревом в БД
     # ------------------------------------------------------------------
     async def load_preindexed_from_db(
-                                   self
-                                  ) -> dict|None:
+                                      self
+                                     ) -> dict|None:
         """
         Загрузка прединдексированных данных из базы данных
         """
@@ -98,25 +105,30 @@ class WatchdogSource(WatchdogBasic):
         old_tree = await self._load_tree()
         return old_tree
     
-    async def _load_tree(self) -> dict|None:
-        doc = await self.dao.find_one(
-                                collection=self.db_collection_file_trees,
-                                query={"root_path": self.source_folder.as_posix()}
-                               )
-        tree = doc.get("tree") if doc else None
+    async def _load_tree(
+                         self
+                        ) -> dict|None:
+        tree = None
+        if self.tree_f.exists():
+            try:
+                data = await load_yaml(self.tree_f, critical=False)
+                tree = data.get("tree") if isinstance(data, dict) else None
+            except Exception:
+                self.logger.exception("Не удалось загрузить дерево из %s", self.tree_f)
         self.logger.debug("Loaded stored tree: %s", "present" if tree else "absent")
         return tree
 
     async def _save_tree(
-                   self,
-                   tree: dict
-                  ) -> None:
-        await self.dao.upsert_one(
-                            collection=self.db_collection_file_trees,
-                            key={"root_path": self.source_folder.as_posix()},
-                            doc=tree
-                           )
-        self.logger.debug("Source tree saved to DB")
+                         self,
+                         tree: dict
+                        ) -> None:
+        ARTIFACTS_D.mkdir(parents=True, exist_ok=True)
+        data_to_save = {
+                        "root_path": self.source_folder.as_posix(),
+                        "tree": tree.get("tree", tree)  # на случай, если передан весь документ или только дерево
+                       }
+        await asyncio.to_thread(save_yaml, self.tree_f, data_to_save)
+        self.logger.debug("Source tree saved to %s", self.tree_f.as_posix())
 
     # ------------------------------------------------------------------
     # Рекурсивное сканирование директорий
@@ -155,7 +167,7 @@ class WatchdogSource(WatchdogBasic):
             if changed:
                 await self._save_tree(new_tree)
     
-    def _scan_directory(
+    def __scan_directory(
                         self,
                         path: Path,
                         current_depth: int = 0
@@ -198,6 +210,80 @@ class WatchdogSource(WatchdogBasic):
                             if current_depth == (self.sample_depth - 1):
                                 self.samples_in_filesystem_found += 1
                             result[path.name].update(self._scan_directory(item_path, current_depth + 1))
+
+        except OSError:
+            self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
+        finally:
+            if current_depth == -1:
+                # нам не нужно имя корневой папки
+                result = result[path.name]
+            return result
+
+    def _scan_directory(
+                        self,
+                        path: Path,
+                        current_depth: int
+                       ) -> Dict[str, dict]:
+        """
+        Возвращает словарь вида {папка: {подпапка: ...} (для глубин < batch_depth)
+        или словарь {папка_батча:{объект:размер}} (для глубины == batch_depth)
+        (для глубины == batch_depth).
+        """
+        result = {path.name:{}}
+
+        try:
+            self.logger.debug("Current dir: %s", path.as_posix())
+            # Ищем все элементы в директории
+            items = path.glob("*")
+            futures: Dict[Future, Path] = {}
+            for item_path in items:
+                if DEBUG:
+                    self.logger.debug("Checking path: %s", item_path.as_posix())
+                match current_depth:
+                    # Если мы на уровне батча - читаем размеры файлов
+                    case self.max_depth:
+                        if DEBUG:
+                            self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
+                        result[path.name].update({
+                                                item_path.name:obj_size_in_Gb(
+                                                                              obj=item_path,
+                                                                              precision=6
+                                                                             )
+                                                })
+                    # Иначе - рекурсивно сканируем найденные директории
+                    case _:
+                        if item_path.is_dir():
+                            # Если мы на начальном уровне - сканируем только те папки, которые входят в область нашего интереса
+                            if all([
+                                    current_depth == -1,
+                                    item_path.name not in DATA_GROUPS_FOR_WATCHING
+                                   ]):
+                                if DEBUG:
+                                    self.logger.debug("It is obj to skip!")
+                                continue
+                            if DEBUG:
+                                self.logger.debug("Adding to tree: %s", item_path.as_posix())
+                                # Подсчитываем потенциальные образцы
+                                if current_depth == (self.sample_depth - 1):
+                                    with self._samples_lock:
+                                        self.samples_in_filesystem_found += 1
+                            # создаём параллельные потоки для сканирования
+                            future = self._scan_executor.submit(
+                                                                self._scan_directory,
+                                                                item_path,
+                                                                current_depth + 1
+                                                               )
+                            futures[future] = item_path
+            while futures:
+                for future in as_completed(futures.copy().keys()):
+                    sub_d = futures[future]
+                    try:
+                        sub_result = future.result()
+                        del futures[future]
+                        result[path.name].update(sub_result)
+                    except Exception:
+                        self.logger.exception("Ошибка сканирования %s", sub_d)
+                        continue
 
         except OSError:
             self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
@@ -539,6 +625,8 @@ class WatchdogSource(WatchdogBasic):
     async def cleanup(self):
         """Финальное сохранение оставшихся изменений перед остановкой."""
         try:
+            if hasattr(self, '_scan_executor'):
+                self._scan_executor.shutdown(wait=True)
             if self.samples_to_DB:
                 self.logger.info("Сохранение %d оставшихся образцов...", len(self.samples_to_DB))
                 await self.dao.upsert_many(

@@ -72,7 +72,6 @@ BASECALL_DATA_TYPES = {'unknown', 'ubam', 'fq'}
 TIMEZONE = ZoneInfo(os.environ['TIMEZONE'])
 
 DB_COLLECTION_SAMPLES=os.environ['DB_COLLECTION_SAMPLES']
-DB_COLLECTION_TREES=os.environ['DB_COLLECTION_TREES']
 DB_COLLECTION_PROCESSES=os.environ['DB_COLLECTION_PROCESSES']
 DB_CFG = {
           'host': os.environ['DB_HOST'],
@@ -81,14 +80,6 @@ DB_CFG = {
           'password': os.environ['DB_PASSWORD'],
           'timeout': os.environ['DB_TIMEOUT'],
           'collections': {
-                          DB_COLLECTION_SAMPLES: {'indexes':[{
-                                                  'name':'ix_sample_id',
-                                                  'keys':[['sample_id', 1]]
-                                                 }]},
-                          DB_COLLECTION_TREES: {'indexes':[{
-                                                  'name':'ix_root_path',
-                                                  'keys':[['root_path', 1]]
-                                                 }]},
                           DB_COLLECTION_PROCESSES: {'indexes':[{
                                                   'name':'ix_process_id',
                                                   'keys':[['process_id', 1]]
