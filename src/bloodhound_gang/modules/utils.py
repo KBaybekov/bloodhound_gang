@@ -3,10 +3,11 @@ import asyncio
 import asyncssh
 import csv
 import jinja2
-import humanize
 import json
+import humanize
 import re
 import shutil
+import subprocess
 import yaml
 from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
@@ -91,6 +92,38 @@ def obj_size_in_Gb(
             return round((size / 1024 ** 3), precision)
     else:
         raise ValueError("Объект или размер не указаны")
+
+def get_size_bytes_fast(path: Path) -> float:
+    """
+    Возвращает размер файла или директории в гигабайтах, используя du -sb.
+    При ошибке или недоступности du возвращает obj_size_in_Gb.
+    """
+    cmd = ["du", "-sb", str(path)]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if proc.returncode == 0 and proc.stdout:
+            parts = proc.stdout.split()
+            if parts and parts[0].isdigit():
+                return obj_size_in_Gb(
+                                      raw_size=int(parts[0]),
+                                      precision=6
+                                     )
+        else:
+            logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
+    except Exception as e:
+        logger.exception("Exception during getting obj size via 'du'.")
+        pass
+    # fallback на медленный способ
+    return obj_size_in_Gb(
+                          obj=path,
+                          precision=6
+                         )
 
 async def load_yaml(
               file_path:Path,

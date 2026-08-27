@@ -20,7 +20,7 @@ from constants import (
                        DEBUG
                       )
 from modules.db_async import ConfigurableMongoDAO
-from modules.utils import load_yaml, obj_size_in_Gb, save_yaml
+from modules.utils import get_size_bytes_fast, load_yaml, obj_size_in_Gb, save_yaml
 
 class WatchdogSource(WatchdogBasic):
     """
