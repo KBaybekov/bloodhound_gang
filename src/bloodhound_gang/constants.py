@@ -80,6 +80,7 @@ DB_CFG = {
           'password': os.environ['DB_PASSWORD'],
           'timeout': os.environ['DB_TIMEOUT'],
           'collections': {
+                          DB_COLLECTION_SAMPLES: {},
                           DB_COLLECTION_PROCESSES: {'indexes':[{
                                                   'name':'ix_process_id',
                                                   'keys':[['process_id', 1]]
