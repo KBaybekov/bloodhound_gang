@@ -274,12 +274,13 @@ class WatchdogSource(WatchdogBasic):
                                                                 current_depth + 1
                                                                )
                             futures[future] = item_path
+            if DEBUG:
+                self.logger.debug("Dirs in process: %s", futures.values())
             for future in as_completed(futures):
                 sub_d = futures[future]
                 try:
                     sub_result = future.result()
                     self.logger.debug("Scanning finished for dir %s", sub_d.as_posix())
-                    del futures[future]
                     result[path.name].update(sub_result)
                 except Exception:
                     self.logger.exception("Ошибка сканирования %s", sub_d)
