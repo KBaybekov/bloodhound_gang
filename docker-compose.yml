@@ -3,13 +3,10 @@ services:
     image: kbaybekov/bloodhound_gang:latest
     container_name: bloodhound_gang
     restart: unless-stopped
-    #user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     user: "${HOST_UID}:${HOST_GID}"
     environment:
       - SSH_USER=${SSH_USER}
       - SSH_AUTH_SOCK=/ssh-auth.sock
-      #- HOST_UID=${UID:-1000}
-      #- HOST_GID=${GID:-1000}
     env_file:
       - .env                      # переменные из внешнего .env попадут в окружение контейнера
     volumes:
@@ -18,17 +15,15 @@ services:
       - ${SSH_AUTH_SOCK}:/ssh-auth.sock:ro
       - ./.docker-passwd:/etc/passwd:ro
       - ./.docker-group:/etc/group:ro
-      # SSH-ключи (read-only)
-      #- ${HOME}/.ssh:/bloodhound_gang/.ssh:ro
-
       # Внешний .env монтируется как файл, чтобы dotenv мог его прочитать при старте
       - ./.env:/bloodhound_gang/.env:ro
 
       # Внешняя папка conf/ затеняет встроенную /bloodhound_gang/conf/
       - ./conf:/bloodhound_gang/conf:ro
 
-      # Внешняя папка data/logs/ затеняет встроенную /bloodhound_gang/conf/
+      # Внешняя папка data/logs/ затеняет встроенную /bloodhound_gang/logs/
       - ./data/logs/:/bloodhound_gang/logs:rw
+      - ./data/artifacts/:/bloodhound_gang/artifacts:rw
 
       # Если существует внешняя папка tasks/, она затеняет src/tasks/
       # Используем bind mount с опциональным созданием (если папки нет, Docker создаст пустую)

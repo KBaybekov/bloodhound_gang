@@ -139,7 +139,7 @@ CONFIGS = {
 
 
 # директория для сохранения текущих состояний вотчдогов, очередей, процессов и т.д.
-STATE_D = Path('data/states/').resolve()
+ARTIFACTS_D = Path('data/artifacts/').resolve()
 # директория логов (должен указывать на смонтированную директорию logs)
 LOG_SIZE_MB = 10
 LOG_BACKUP_COUNT = 3

@@ -13,6 +13,7 @@ from classes.watchdogs.watchdog_source import WatchdogSource
 from classes.watchdogs.watchdog_processing import WatchdogProcessing
 from modules.db_async import ConfigurableMongoDAO
 from constants import (
+                       ARTIFACTS_D,
                        HTTP_METRICS,
                        HTTP_METRICS_PORT
                       )
@@ -36,7 +37,6 @@ class WatchdogMetrics(WatchdogBasic):
         dao: ConfigurableMongoDAO,
         watchdog_source: WatchdogSource,
         watchdog_processing: WatchdogProcessing,
-        state_d: Path = Path("data/states/").resolve(),
         **kwargs,
     ):
         super().__init__(
@@ -76,7 +76,7 @@ class WatchdogMetrics(WatchdogBasic):
         self._active_status_labels: Set[str] = set()
 
         # Директория для хранения состояний (пока не используется, но оставлена для расширения)
-        self.state_d: Path = state_d
+        self.artifacts_d: Path = ARTIFACTS_D
 
     async def start(self) -> None:
         """Запустить вотчдог и HTTP-сервер метрик."""
