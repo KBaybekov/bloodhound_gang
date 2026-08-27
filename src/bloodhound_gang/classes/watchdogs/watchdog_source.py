@@ -274,16 +274,16 @@ class WatchdogSource(WatchdogBasic):
                                                                 current_depth + 1
                                                                )
                             futures[future] = item_path
-            while futures:
-                for future in as_completed(futures.copy().keys()):
-                    sub_d = futures[future]
-                    try:
-                        sub_result = future.result()
-                        del futures[future]
-                        result[path.name].update(sub_result)
-                    except Exception:
-                        self.logger.exception("Ошибка сканирования %s", sub_d)
-                        continue
+            for future in as_completed(futures):
+                sub_d = futures[future]
+                try:
+                    sub_result = future.result()
+                    self.logger.debug("Scanning finished for dir %s", sub_d.as_posix())
+                    del futures[future]
+                    result[path.name].update(sub_result)
+                except Exception:
+                    self.logger.exception("Ошибка сканирования %s", sub_d)
+                    continue
 
         except OSError:
             self.logger.exception("Ошибка доступа к директории %s", path.as_posix())
