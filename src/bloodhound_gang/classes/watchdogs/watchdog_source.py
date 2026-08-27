@@ -198,10 +198,7 @@ class WatchdogSource(WatchdogBasic):
                     case self.max_depth:
                         #self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
-                                                item_path.name:obj_size_in_Gb(
-                                                                              obj=item_path,
-                                                                              precision=6
-                                                                             )
+                                                item_path.name:get_size_bytes_fast(item_path)
                                                 })
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
@@ -245,10 +242,7 @@ class WatchdogSource(WatchdogBasic):
                         if DEBUG:
                             self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
-                                                item_path.name:obj_size_in_Gb(
-                                                                              obj=item_path,
-                                                                              precision=6
-                                                                             )
+                                                item_path.name:get_size_bytes_fast(item_path)
                                                 })
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
