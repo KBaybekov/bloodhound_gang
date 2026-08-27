@@ -8,6 +8,7 @@ import humanize
 import re
 import shutil
 import subprocess
+import threading
 import yaml
 from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
@@ -26,6 +27,8 @@ from constants import (
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
+
+_size_du_semaphore = threading.BoundedSemaphore(16)
 
 def normalize_pore_name(v: str) -> str:
     """
@@ -74,18 +77,6 @@ def obj_size_in_Gb(
                 else:
                     files = (f for f in files if f.is_file())
                 size = sum(f.stat().st_size for f in files)
-                """if extension is None:
-                    size = sum([
-                                f.stat().st_size
-                                for f in obj.iterdir()
-                            ])
-                else:
-                    size = sum([
-                                f.stat().st_size
-                                for f in obj.iterdir()
-                                if f.name.endswith(extension)
-                            ])"""
-
         except FileNotFoundError:
             logger.exception("Объект не найден: %s", obj.as_posix())
         finally:
@@ -98,24 +89,30 @@ def get_size_bytes_fast(path: Path) -> float:
     Возвращает размер файла или директории в гигабайтах, используя du -sb.
     При ошибке или недоступности du возвращает obj_size_in_Gb.
     """
-    cmd = ["du", "-sb", str(path)]
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        if proc.returncode == 0 and proc.stdout:
-            parts = proc.stdout.split()
-            if parts and parts[0].isdigit():
-                return obj_size_in_Gb(
-                                      raw_size=int(parts[0]),
-                                      precision=6
-                                     )
-        else:
-            logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
+        if path.is_file:
+            return obj_size_in_Gb(
+                                  obj=path,
+                                  precision=6
+                                 )
+        if path.is_dir():
+            cmd = ["du", "-sb", str(path)]
+            proc = subprocess.run(
+                                  cmd,
+                                  capture_output=True,
+                                  text=True,
+                                  timeout=10,
+                                  check=False,
+                                 )
+            if proc.returncode == 0 and proc.stdout:
+                parts = proc.stdout.split()
+                if parts and parts[0].isdigit():
+                    return obj_size_in_Gb(
+                                          raw_size=int(parts[0]),
+                                          precision=6
+                                         )
+            else:
+                logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
     except Exception as e:
         logger.exception("Exception during getting obj size via 'du'.")
         pass
