@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from classes.objects.process import Process
 from classes.objects.sample import Sample
 from classes.objects.taskload import TaskLoad
-from constants import DELIMITER
+from constants import DEBUG, DELIMITER
 from modules.utils import load_callable, str_to_dict, read_tsv
 from modules.logger import get_logger
 
@@ -271,8 +271,9 @@ class Task(BaseModel):
 
         processes = self.process_factory(self, sample)
         if processes:
-            logger.debug(
-                         "Created %d process(es) for task '%s' and sample '%s'",
-                         len(processes), self.task_id, sample.sample_id
-                        )
+            if DEBUG:
+                logger.debug(
+                            "Created %d process(es) for task '%s' and sample '%s'",
+                            len(processes), self.task_id, sample.sample_id
+                            )
         return processes
