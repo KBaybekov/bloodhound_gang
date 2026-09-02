@@ -28,7 +28,7 @@ from modules.utils import load_yaml, file_mtime_changed, run_ssh_async
 
 class Host(BaseModel):
     """
-    Хранение информации о хосте, на котором выполнются процессы.
+    Хранение информации о хосте, на котором выполняются процессы.
     """
     model_config = ConfigDict(
                               str_strip_whitespace=True,
@@ -498,9 +498,15 @@ class WatchdogProcessing(WatchdogBasic):
                     # Запускаем процесс
                     proc.host = self.define_process_host(proc)
                     if proc.host is not None:
+                        host = self.hosts.get(proc.host)
+                        if host is None:
+                            self.logger.warning("Хост %s не найден после выбора для процесса %s", proc.host, proc_id)
+                            continue
                         try:
                             await proc.run()
                         except Exception:
+                            # снимаем нагрузку, т.к. процесс не запустился
+                            host.compute_load(proc, action='remove')
                             self.logger.exception("Не удалось запустить процесс %s", proc_id)
                             continue
                         if proc.status in PROCESS_STATUSES_RUNNING:
@@ -508,6 +514,9 @@ class WatchdogProcessing(WatchdogBasic):
                             self.logger.debug("Process '%s' started on host '%s'", proc.process_id, proc.host)
                             # Не будем перегружать систему одновременными вызовами + будут разные process.start
                             await asyncio.sleep(1)
+                        else:
+                            # процесс не перешёл в running – освобождаем ресурсы
+                            host.compute_load(proc, action='remove')
                         sample = await self.get_sample(proc.sample_db_id)
                         if sample is not None:
                             sample.store_process_data(proc)
