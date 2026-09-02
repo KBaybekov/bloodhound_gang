@@ -939,6 +939,7 @@ class WatchdogProcessing(WatchdogBasic):
             if check_interval > duration:
                 await asyncio.sleep(check_interval - duration)
             left_time -= max([duration, check_interval])
+            self.update_check_interval()
         return None
 
     async def stop(self):
