@@ -18,7 +18,7 @@ from classes.watchdogs.watchdog_metrics import WatchdogMetrics
 from classes.watchdogs.watchdog_source import WatchdogSource
 from classes.watchdogs.watchdog_processing import WatchdogProcessing
 from modules.db_async import ConfigurableMongoDAO
-from modules.utils import check_important_file_objs
+from modules.utils import check_important_file_objs, get_hostname
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -47,7 +47,7 @@ async def main():
         return None
 
     # Проверяем важные файловые объекты на возможность работы с ними
-    logger.info("Запуск главного процесса обработки данных %s", PROJECT_NAME)
+    logger.info("Запуск главного процесса обработки данных %s. Хост: %s", PROJECT_NAME, get_hostname())
     filesystem_objs:dict[str,Path] = MAIN_DS | CONFIGS
     logger.debug("Checking service files...")
     await check_important_file_objs(filesystem_objs)

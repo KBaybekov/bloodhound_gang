@@ -167,7 +167,7 @@ class WatchdogSource(WatchdogBasic):
             if changed:
                 await self._save_tree(new_tree)
     
-    def __scan_directory(
+    def _scan_directory(
                         self,
                         path: Path,
                         current_depth: int = 0
@@ -216,7 +216,7 @@ class WatchdogSource(WatchdogBasic):
                 result = result[path.name]
             return result
 
-    def _scan_directory(
+    def __scan_directory(
                         self,
                         path: Path,
                         current_depth: int

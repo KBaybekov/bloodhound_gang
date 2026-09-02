@@ -113,7 +113,7 @@ def get_size_bytes_fast(path: Path) -> float:
                                          )
             else:
                 logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
-    except Exception as e:
+    except Exception:
         logger.exception("Exception during getting obj size via 'du'.")
         pass
     # fallback на медленный способ
@@ -783,4 +783,8 @@ async def run_ssh_async(
             conn.close()
             await conn.wait_closed()
     return
-    
+
+def get_hostname():
+    """Return the system's hostname."""
+    import socket
+    return socket.gethostname()
