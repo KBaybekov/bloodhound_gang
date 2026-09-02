@@ -786,5 +786,5 @@ async def run_ssh_async(
 
 def get_hostname():
     """Return the system's hostname."""
-    import socket
-    return socket.gethostname()
+    import platform
+    return platform.node()

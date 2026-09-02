@@ -1,7 +1,6 @@
-import socket
-
 def get_hostname():
     """Return the system's hostname."""
-    return socket.gethostname()
+    import platform
+    return platform.node()
 
 print(get_hostname())
