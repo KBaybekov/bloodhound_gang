@@ -270,8 +270,9 @@ class Task(BaseModel):
         logger = get_logger(__name__)
 
         processes = self.process_factory(self, sample)
-        logger.debug(
-            "Created %d process(es) for task '%s' and sample '%s'",
-            len(processes), self.task_id, sample.sample_id
-        )
+        if processes:
+            logger.debug(
+                         "Created %d process(es) for task '%s' and sample '%s'",
+                         len(processes), self.task_id, sample.sample_id
+                        )
         return processes
