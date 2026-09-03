@@ -423,12 +423,13 @@ class Process(BaseModel):
         """
         Указывает момент своего вызова как время окончания обработки.
         """
-        self.finish = get_now_time()
-        if self.start is not None and self.finish is not None:
-            # TODO извлекать данные о длительности из репорта Nextflow
-            self.duration = self.finish - self.start
-        # PID у завершенного процесса быть не должно
-        self.pid_f = None
+        if self.finish is None and self.status not in PROCESS_STATUSES_RUNNING:
+            self.finish = get_now_time()
+            if self.start is not None and self.finish is not None:
+                # TODO извлекать данные о длительности из репорта Nextflow
+                self.duration = self.finish - self.start
+            # PID у завершенного процесса быть не должно
+            self.pid_f = None
 
     async def check_running(self) -> None:
         """
@@ -497,6 +498,8 @@ class Process(BaseModel):
                     self.software_versions = await load_yaml(self.software_list_f)
                 return None
 
+        if self.status in PROCESS_STATUSES_FINISHED:
+            return
         try:
             # Проверяем, завершился ли процесс
             self.exitcode = check_exitcode()
@@ -536,6 +539,8 @@ class Process(BaseModel):
             # Проверяем, не превышен ли таймаут
             else:
                 await self.check_timeout()
+                if self.status in PROCESS_STATUSES_FINISHED:
+                    return
                 # А затем повторно проверяем наличие файла экзиткода, чтобы при его наличии тут же собрать статистику
                 self.exitcode = check_exitcode()
                 if self.exitcode is not None:
@@ -840,11 +845,13 @@ class Process(BaseModel):
         При любом исходе очищает pid-файл и гарантирует наличие exitcode.
         Безопасна при уже завершённом процессе.
         """
-        if self.pid_f is None:
+        if self.pid_f is None or not self.pid_f.exists():
             logger.warning("No PID to terminate for process %s", self.process_id)
+            self.set_finish()
             return None
         if self.host is None:
             logger.warning("Process '%s': host не указан", self.process_id)
+            self.set_finish()
             return None
         try:
             try:
@@ -901,6 +908,7 @@ class Process(BaseModel):
 
         except Exception:
             logger.exception("Process '%s': Error during terminating subprocess.", self.process_id)
+        self.set_finish()
 
     async def _cleanup_pid_and_exitcode(self, reason: str) -> None:
         """Удаляет pid-файл и записывает exitcode, если его ещё нет."""
@@ -931,4 +939,3 @@ class Process(BaseModel):
                 self.process_id, elapsed, self.timeout
             )
             await self.terminate(reason='timeout')
-            self.set_finish()
