@@ -1,0 +1,35 @@
+DEBUG="FALSE"
+HEAD_ONLY="FALSE"
+
+# Пути к данным
+SRC_D=''
+WORK_D=''
+RES_D=''
+LOG_D=''
+
+# MongoDB
+DB_HOST=xxx
+DB_NAME=yyy
+DB_USER=guest
+DB_PASSWORD=guest
+DB_TIMEOUT=2000
+DB_COLLECTION_SAMPLES=samples
+DB_COLLECTION_PROCESSES=processes
+
+# Частота работы вотчдогов (можно изменять во время работы)
+WATCHDOG_SOURCE_CHECK_INTERVAL=900
+WATCHDOG_PROCESSING_CHECK_INTERVAL=300
+WATCHDOG_METRICS_CHECK_INTERVAL=300
+
+# Минимальное время жизни файлов для индексации (часы), можно в формате float (0.5)
+MIN_STABLE_TIME_H = 24
+TIMEZONE='Europe/Moscow'
+
+# Метрики
+HTTP_METRICS = '0.0.0.0'
+HTTP_METRICS_PORT = '8000'
+
+# Grafana (опционально)
+GRAFANA_ADMIN_PASSWORD=qazwsx
+
+NXF_HOME=/home/nextflow/
