@@ -945,16 +945,19 @@ class WatchdogProcessing(WatchdogBasic):
     async def stop(self):
         """Подать сигнал остановки."""
         self.stop_event.set()
-        for proc in self.processes.values():
-            if proc.pid_f is not None:
-                # Если exitcode-файл уже существует, процесс фактически завершился
-                if proc.exitcode_f.exists():
-                    await proc.check_running()
-                    self.logger.debug("Process '%s' уже завершился, статус: %s", 
-                                      proc.process_id, proc.status)
-                else:
-                    # Процесс ещё выполняется – прерываем
-                    await self.stop_one_process(process=proc, reason='system_interrupt')
+        if self.request_env_variable('HEAD_ONLY') == 'TRUE':
+            self.logger.info("HEAD_ONLY=TRUE: процессы обработки не останавливаются")
+        else:
+            for proc in self.processes.values():
+                if proc.pid_f is not None:
+                    # Если exitcode-файл уже существует, процесс фактически завершился
+                    if proc.exitcode_f.exists():
+                        await proc.check_running()
+                        self.logger.debug("Process '%s' уже завершился, статус: %s", 
+                                        proc.process_id, proc.status)
+                    else:
+                        # Процесс ещё выполняется – прерываем
+                        await self.stop_one_process(process=proc, reason='system_interrupt')
         # Немедленно сохраняем изменённые объекты, чтобы не потерять статусы
         try:
             await self._save_objects_to_db()
