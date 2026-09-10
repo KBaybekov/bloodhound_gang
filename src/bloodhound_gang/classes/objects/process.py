@@ -33,7 +33,7 @@ from modules.utils import (
                            is_integer,
                            decode_process_id,
                            objects_in_dir,
-                           obj_size_in_Gb,
+                           get_obj_size,
                            load_callable,
                            load_yaml,
                            render_text,
@@ -508,8 +508,14 @@ class Process(BaseModel):
                 logger.debug("Process '%s': Exit code file found: %s", self.process_id, self.exitcode_f.as_posix())
                 # Ищем логи
                 capture_log_files()
-                self.res_d_size_GB = obj_size_in_Gb(obj=self.res_d)
-                self.work_d_size_GB = obj_size_in_Gb(obj=self.work_d)
+                self.res_d_size_GB = get_obj_size(
+                                                  obj=self.res_d,
+                                                  unit_of_measurement='Gb'
+                                                 )
+                self.work_d_size_GB = get_obj_size(
+                                                   obj=self.work_d,
+                                                   unit_of_measurement='Gb'
+                                                  )
                 # Получаем специфичную для задания информацию и отметку, успешно ли завершён процесс (exitcode=0 не показатель)
                 if self.result_factory_func is not None:
                     is_processing_ok, self._result = await asyncio.to_thread(

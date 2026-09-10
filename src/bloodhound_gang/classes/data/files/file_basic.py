@@ -4,6 +4,9 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from constants import KNOWN_FILE_TYPES
 
+from modules.utils import get_obj_size
+
+
 class FileBasic(BaseModel):
     """
     Базовые метаданные файла
@@ -70,26 +73,5 @@ class FileBasic(BaseModel):
         if self.permissions is None:
             object.__setattr__(self, 'permissions', oct(self.path.stat().st_mode))
         if self.size_bytes is None:
-            object.__setattr__(self, 'size_bytes', self.path.stat().st_size)
+            object.__setattr__(self, 'size_bytes', get_obj_size(self.path))
         return self
-"""
-    @field_validator('owner', 'created', 'permissions', 'size_bytes', mode='before')
-    @classmethod
-    def compute_file_metadata(cls, v, info) -> ...:
-        # Если поле не передано, вычисляем из path
-        if v is not None:
-            return v
-        path = info.data.get('path')
-        if path is None:
-            return None
-        # Для каждого поля своя логика
-        if info.field_name == 'owner':
-            return path.owner()
-        if info.field_name == 'created':
-            return datetime.fromtimestamp(path.stat().st_ctime)
-        if info.field_name == 'permissions':
-            return oct(path.stat().st_mode)
-        if info.field_name == 'size_bytes':
-            return path.stat().st_size
-        return v
-"""

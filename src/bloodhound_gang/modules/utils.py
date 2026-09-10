@@ -13,7 +13,7 @@ import yaml
 from datetime import datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Callable, Final
+from typing import Callable, Final, Literal
 
 from constants import (
                        PORES,
@@ -40,63 +40,59 @@ def normalize_pore_name(v: str) -> str:
         raise ValueError(f"pore must be one of {PORES}, got '{v}'")
     return v
 
-def obj_size_in_Gb(
-                   obj:Path|None=None,
-                   raw_size: int|float|None=None,
-                   extension:str|None=None,
-                   precision: int=2
-                   ) -> float:
+def get_obj_size(
+                 obj:Path|None=None,
+                 unit_of_measurement:str="bytes",
+                 raw_size_bytes: int|float|None=None,
+                 extension:str|None=None,
+                 precision: int=2
+                 
+                ) -> float:
     """
-    Возвращает размер в Гб, округленный до указанной точности
+    Если указан **obj**:
+        Возвращает размер файла (используя obj_size_in_Gb()) или директории (используя du -sb).
+        При ошибке или недоступности du обращается к obj_size_in_Gb().
+    Если указан **raw_size_bytes**:
+        В зависимости от **unit_of_measurement** ('bytes', 'Kb', 'Mb', 'Gb', 'Tb', 'Pb') возвращает значение в нужном разряде
+    Если указан **extension**:
+        При определении размера подсчитывает только файлы с указанным расширением
     
-    :param obj: объект, размер которого нужно получить
-    :type obj: Path|None
-    :param raw_size: исходный размер в байтах
-    :type raw_size: int|float|None
-    :param precision: чисел после запятой (2)
-    :type precision: int
-    :param extension: расширение вложенных файлов (если obj - папка), размер которых нужно получить
-    :type extension: str|None
+    :param obj: Файл/директория
+    :type obj: Path|None=None
+    :param unit_of_measurement: Нужная размерность ('bytes', 'Kb', 'Mb', 'Gb', 'Tb', 'Pb')
+    :type unit_of_measurement: str='bytes'
+    :param raw_size_bytes: Размер в байтах для перевода в другую размерность
+    :type raw_size_bytes: int|float|None=None
+    :param extension: Файлы для подсчёта размерности
+    :type extension: str|None=None
+    :param precision: чисел после запятой
+    :type precision: int=2
     :return: размер объекта в Гб
-    :rtype: float
-    :raises FileNotFoundError: если объект не найден
-    :raises ValueError: если не указан объект или размер
+        :rtype: float
+        :raises FileNotFoundError: если объект не найден
+        :raises ValueError: если не указан объект или размер    
     """
-    if raw_size is not None:
-        return round((float(raw_size) / 1024 ** 3), precision)
-    elif obj is not None:
-        size = 0.0
-        try:
-            if obj.is_file():
-                size = obj.stat().st_size
-            else:
-                # рекурсивно собираем все файлы
-                files = obj.rglob('*')
-                if extension:
-                    files = (f for f in files if f.is_file() and f.name.endswith(extension))
-                else:
-                    files = (f for f in files if f.is_file())
-                size = sum(f.stat().st_size for f in files)
-        except FileNotFoundError:
-            logger.exception("Объект не найден: %s", obj.as_posix())
-        finally:
-            return round((size / 1024 ** 3), precision)
-    else:
+    multipliers = {
+                   'bytes': 0,
+                   'Kb': 1,
+                   'Mb': 2,
+                   'Gb': 3,
+                   'Tb': 4,
+                   'Pb': 5                       
+                  }
+    if raw_size_bytes is not None:
+        return round((float(raw_size_bytes) / 1024 ** multipliers[unit_of_measurement]), precision)
+
+    if obj is None:
         raise ValueError("Объект или размер не указаны")
 
-def get_size_bytes_fast(path: Path) -> float:
-    """
-    Возвращает размер файла или директории в гигабайтах, используя du -sb.
-    При ошибке или недоступности du возвращает obj_size_in_Gb.
-    """
+    size = 0.0                    
     try:
-        if path.is_file:
-            return obj_size_in_Gb(
-                                  obj=path,
-                                  precision=6
-                                 )
-        if path.is_dir():
-            cmd = ["du", "-sb", str(path)]
+        if obj.is_file:
+            size = obj.stat().st_size
+
+        if obj.is_dir():
+            cmd = ["du", "-sb", str(obj)]
             proc = subprocess.run(
                                   cmd,
                                   capture_output=True,
@@ -107,20 +103,35 @@ def get_size_bytes_fast(path: Path) -> float:
             if proc.returncode == 0 and proc.stdout:
                 parts = proc.stdout.split()
                 if parts and parts[0].isdigit():
-                    return obj_size_in_Gb(
-                                          raw_size=int(parts[0]),
-                                          precision=6
-                                         )
+                    size = int(parts[0])
+                    return get_obj_size(
+                                        raw_size_bytes=size,
+                                        precision=precision
+                                       )
+            logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
+            # fallback на медленный способ
+            # рекурсивно собираем все файлы
+            files = obj.rglob('*')
+            if extension:
+                files = (f for f in files if f.is_file() and f.name.endswith(extension))
             else:
-                logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
-    except Exception:
-        logger.exception("Exception during getting obj size via 'du'.")
-        pass
-    # fallback на медленный способ
-    return obj_size_in_Gb(
-                          obj=path,
-                          precision=6
-                         )
+                files = (f for f in files if f.is_file())
+            for f in files:
+                try:
+                    size += f.stat().st_size
+                except Exception:
+                    continue
+    except FileNotFoundError:
+        logger.exception("Объект не найден: %s", obj.as_posix())
+    except PermissionError:
+        logger.exception(f"Error: Permission denied to access %s", obj.as_posix())
+    except OSError:
+        logger.exception("A filesystem error occurred")
+    finally:
+        return get_obj_size(
+                            raw_size_bytes=size,
+                            precision=precision
+                           )
 
 async def load_yaml(
               file_path:Path,
@@ -788,3 +799,87 @@ def get_hostname():
     """Return the system's hostname."""
     import platform
     return platform.node()
+
+
+
+def _get_size_bytes_fast(path: Path) -> float:
+    """
+    Возвращает размер в байтах файла (используя obj_size_in_Gb()) или директории (используя du -sb).
+    При ошибке или недоступности du обращается к obj_size_in_Gb().
+    """
+    try:
+        if path.is_file:
+            return _obj_size_in_Gb(
+                                  obj=path,
+                                  precision=6
+                                 )
+        if path.is_dir():
+            cmd = ["du", "-sb", str(path)]
+            proc = subprocess.run(
+                                  cmd,
+                                  capture_output=True,
+                                  text=True,
+                                  timeout=10,
+                                  check=False,
+                                 )
+            if proc.returncode == 0 and proc.stdout:
+                parts = proc.stdout.split()
+                if parts and parts[0].isdigit():
+                    return _obj_size_in_Gb(
+                                          raw_size=int(parts[0]),
+                                          precision=6
+                                         )
+            else:
+                logger.error("Проблема при выполнении команды %s: returncode='%d', stdout='%s'", cmd, proc.returncode, proc.stdout)
+    except Exception:
+        logger.exception("Exception during getting obj size via 'du'.")
+        pass
+    # fallback на медленный способ
+    return _obj_size_in_Gb(
+                          obj=path,
+                          precision=6
+                         )
+
+def _obj_size_in_Gb(
+                   obj:Path|None=None,
+                   raw_size: int|float|None=None,
+                   extension:str|None=None,
+                   precision: int=2
+                   ) -> float:
+    """
+    Возвращает размер в Гб, округленный до указанной точности
+    
+    :param obj: объект, размер которого нужно получить
+    :type obj: Path|None
+    :param raw_size: исходный размер в байтах
+    :type raw_size: int|float|None
+    :param precision: чисел после запятой (2)
+    :type precision: int
+    :param extension: расширение вложенных файлов (если obj - папка), размер которых нужно получить
+    :type extension: str|None
+    :return: размер объекта в Гб
+    :rtype: float
+    :raises FileNotFoundError: если объект не найден
+    :raises ValueError: если не указан объект или размер
+    """
+    if raw_size is not None:
+        return round((float(raw_size) / 1024 ** 3), precision)
+    elif obj is not None:
+        size = 0.0
+        try:
+            if obj.is_file():
+                size = obj.stat().st_size
+            else:
+                # рекурсивно собираем все файлы
+                files = obj.rglob('*')
+                if extension:
+                    files = (f for f in files if f.is_file() and f.name.endswith(extension))
+                else:
+                    files = (f for f in files if f.is_file())
+                size = sum(f.stat().st_size for f in files)
+        except FileNotFoundError:
+            logger.exception("Объект не найден: %s", obj.as_posix())
+        finally:
+            return round((size / 1024 ** 3), precision)
+    else:
+        raise ValueError("Объект или размер не указаны")

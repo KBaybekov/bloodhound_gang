@@ -1,8 +1,8 @@
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field
 
 from constants import SOURCE_EXTENSIONS
-from modules.utils import obj_size_in_Gb
+from modules.utils import get_obj_size
 from modules.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,4 +40,8 @@ class SourceData(BaseModel):
         """
         if self.path.is_dir() and self.path.exists():
             for ext in SOURCE_EXTENSIONS:
-                self.size_GB += obj_size_in_Gb(obj=self.path, extension=ext)
+                self.size_GB += get_obj_size(
+                                             obj=self.path,
+                                             unit_of_measurement='Gb',
+                                             extension=ext
+                                            )

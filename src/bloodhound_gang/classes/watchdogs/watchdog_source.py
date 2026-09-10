@@ -20,7 +20,7 @@ from constants import (
                        DEBUG
                       )
 from modules.db_async import ConfigurableMongoDAO
-from modules.utils import get_size_bytes_fast, load_yaml, obj_size_in_Gb, save_yaml
+from modules.utils import get_obj_size, load_yaml, save_yaml
 
 class WatchdogSource(WatchdogBasic):
     """
@@ -198,7 +198,7 @@ class WatchdogSource(WatchdogBasic):
                     case self.max_depth:
                         #self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
-                                                item_path.name:get_size_bytes_fast(item_path)
+                                                item_path.name:get_obj_size(item_path)
                                                 })
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
@@ -242,7 +242,7 @@ class WatchdogSource(WatchdogBasic):
                         if DEBUG:
                             self.logger.debug("%s on last level, we'll just add it and its size", item_path.as_posix())
                         result[path.name].update({
-                                                item_path.name:get_size_bytes_fast(item_path)
+                                                item_path.name:get_obj_size(item_path)
                                                 })
                     # Иначе - рекурсивно сканируем найденные директории
                     case _:
