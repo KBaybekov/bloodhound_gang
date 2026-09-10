@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 
-from modules.utils import get_now_time, obj_size_in_Gb
+from modules.utils import get_now_time, get_obj_size
 
 
 class ResultBasic(BaseModel):
@@ -21,7 +21,7 @@ class ResultBasic(BaseModel):
     type: str = Field(
                       default='UNDEFINED',
                       description='Поле, указывающее на тип задания',
-                      examples=['basecalling_basic', 'alignment']
+                      examples=['basecalling_basic', 'alignment_human']
                      )
     created: datetime = Field(
                               ...,
@@ -87,9 +87,15 @@ class ResultBasic(BaseModel):
         res_d_size_GB = 0.0
         work_d_size_GB = 0.0
         if process.res_d != Path('/dev/null'):
-            res_d_size_GB = obj_size_in_Gb(process.res_d)
+            res_d_size_GB = get_obj_size(
+                                         obj=process.res_d,
+                                         unit_of_measurement='Gb'
+                                        )
         if process.work_d is not None:
-            work_d_size_GB = obj_size_in_Gb(process.work_d)
+            work_d_size_GB = get_obj_size(
+                                          obj=process.work_d,
+                                          unit_of_measurement='Gb'
+                                         )
 
         return cls(
                    created=get_now_time(),
@@ -125,10 +131,15 @@ class ResultBasic(BaseModel):
         res_d_size_GB = 0.0
         work_d_size_GB = 0.0
         if res_d != Path('/dev/null'):
-            res_d_size_GB = obj_size_in_Gb(res_d)
+            res_d_size_GB = get_obj_size(
+                                         obj=res_d,
+                                         unit_of_measurement='Gb'
+                                        )
         if work_d is not None:
-            work_d_size_GB = obj_size_in_Gb(work_d)
-
+            work_d_size_GB = get_obj_size(
+                                          obj=work_d,
+                                          unit_of_measurement='Gb'
+                                        )
         if created is None:
             created = get_now_time()
         if tags is None:
