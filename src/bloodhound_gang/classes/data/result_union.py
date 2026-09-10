@@ -9,12 +9,14 @@ from typing import Annotated, Union
 from classes.data.files.ubam_ont import UbamONT
 from classes.data.files.fastq_ont import FastqONT
 from tasks.basecalling_basic.result import ResultBasecallingBasic
+from tasks.alignment_human.result import ResultAlignmentHuman
 
 ResultBasecallingBasic.model_rebuild()
 
 ResultUnion = Annotated[
                         Union[
-                              ResultBasecallingBasic
+                              ResultBasecallingBasic,
+                              ResultAlignmentHuman
                              ],
                         Field(discriminator='type')
                        ]
